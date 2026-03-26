@@ -15,6 +15,36 @@ echo "$STAGED_FILES" | xargs bun run --cwd "$REPO_ROOT" wit check-contracts
 exit $?
 `;
 
+// The prepare-commit-msg hook shell script written to .git/hooks/prepare-commit-msg.
+// Queries active intents for the current session and appends Wit-Intent trailers
+// via git interpret-trailers. Exits silently (code 0) if:
+//   - .wit/session.id does not exist (no session)
+//   - no active intents are found
+//   - the daemon is unreachable (500ms timeout in wit _active-intents)
+const PREPARE_COMMIT_MSG_SCRIPT = `#!/bin/sh
+# Managed by wit. Do not edit -- run \`wit hook install\` to regenerate.
+COMMIT_MSG_FILE="$1"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+SESSION_FILE="$REPO_ROOT/.wit/session.id"
+
+if [ ! -f "$SESSION_FILE" ]; then exit 0; fi
+SESSION_ID=$(cat "$SESSION_FILE")
+
+# Use timeout binary if available (coreutils) as an outer safety net.
+# The 500ms Promise.race inside wit _active-intents is the primary timeout on macOS.
+if command -v timeout > /dev/null 2>&1; then
+  ACTIVE_INTENTS=$(timeout 0.5 bun run --cwd "$REPO_ROOT" wit _active-intents "$SESSION_ID" 2>/dev/null)
+else
+  ACTIVE_INTENTS=$(bun run --cwd "$REPO_ROOT" wit _active-intents "$SESSION_ID" 2>/dev/null)
+fi
+
+if [ -z "$ACTIVE_INTENTS" ]; then exit 0; fi
+
+echo "$ACTIVE_INTENTS" | while IFS= read -r intent_id; do
+  git interpret-trailers --in-place --trailer "Wit-Intent: $intent_id" "$COMMIT_MSG_FILE"
+done
+`;
+
 export class HookInstallCommand extends Command {
   static override paths = [["hook", "install"]];
   static override usage = Command.Usage({
@@ -47,6 +77,13 @@ export class HookInstallCommand extends Command {
     chmodSync(hookPath, 0o755);
 
     this.context.stdout.write(`Pre-commit hook installed at ${hookPath}\n`);
+
+    const prepareCommitMsgPath = join(hooksDir, "prepare-commit-msg");
+    writeFileSync(prepareCommitMsgPath, PREPARE_COMMIT_MSG_SCRIPT, { encoding: "utf-8" });
+    chmodSync(prepareCommitMsgPath, 0o755);
+
+    this.context.stdout.write(`Prepare-commit-msg hook installed at ${prepareCommitMsgPath}\n`);
+
     return 0;
   }
 }

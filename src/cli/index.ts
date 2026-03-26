@@ -5,6 +5,8 @@ import { StatusCommand } from "./commands/status";
 import { DeclareCommand } from "./commands/declare";
 import { LockCommand } from "./commands/lock";
 import { ReleaseCommand } from "./commands/release";
+import { WatchCommand } from "./commands/watch";
+import { ActiveIntentsCommand } from "./commands/active-intents";
 
 const cli = new Cli({
   binaryLabel: "wit",
@@ -21,5 +23,7 @@ cli.register(StatusCommand);
 cli.register(DeclareCommand);
 cli.register(LockCommand);
 cli.register(ReleaseCommand);
+cli.register(WatchCommand);
+cli.register(ActiveIntentsCommand);
 
 cli.runExit(process.argv.slice(2));
