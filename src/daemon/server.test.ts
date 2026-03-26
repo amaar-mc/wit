@@ -21,7 +21,11 @@ describe("Daemon server", () => {
     tmpDir = mkdtempSync(join(tmpdir(), "wit-server-test-"));
     const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
     await runMigrations(db);
-    deps = { db, sqlite };
+    deps = {
+      db,
+      sqlite,
+      parserService: { typescript: {} as never, python: {} as never, parser: {} as never },
+    };
   });
 
   afterEach(() => {

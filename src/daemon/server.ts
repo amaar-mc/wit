@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Database } from "bun:sqlite";
 import type { WitDatabase } from "../db/index";
+import type { ParserService } from "../parser/loader";
 import {
   PROTOCOL_VERSION,
   createRpcError,
@@ -11,6 +12,7 @@ import { handleRpc } from "./rpc/handlers";
 export type DaemonDeps = {
   db: WitDatabase;
   sqlite: Database;
+  parserService: ParserService;
 };
 
 type Variables = {
