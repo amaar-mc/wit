@@ -42,8 +42,8 @@ describe("createDatabase PRAGMA setup", () => {
       const { createDatabase } = require("./index");
       const { sqlite } = createDatabase(dbPath);
       openDbs.push(sqlite);
-      const row = sqlite.prepare("PRAGMA busy_timeout").get() as { busy_timeout: number };
-      expect(row.busy_timeout).toBe(5000);
+      const row = sqlite.prepare("PRAGMA busy_timeout").get() as { timeout: number };
+      expect(row.timeout).toBe(5000);
     } finally {
       cleanup();
     }
