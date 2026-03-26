@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-foundation-01-03-PLAN.md
-last_updated: "2026-03-26T04:50:09.497Z"
+stopped_at: Completed 02-semantic-locking-02-01-PLAN.md
+last_updated: "2026-03-26T05:19:58.957Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 33
 ---
 
@@ -53,6 +53,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 01-foundation P01 | 4min | 3 tasks | 11 files |
 | Phase 01-foundation P02 | 8min | 4 tasks | 7 files |
 | Phase 01-foundation P03 | 7min | 2 tasks | 7 files |
+| Phase 02-semantic-locking P01 | 2min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: existsSync (node:fs) for socket polling — Bun.file().exists() returns false for unix socket files
 - [Phase 01-foundation]: import.meta.url-relative migrations path in migrate.ts — detached daemon has unpredictable CWD
 - [Phase 01-foundation]: Explicit WitPaths arg with lazy defaultPaths() factory — tests inject temp-dir paths, avoids module-level constant baking
+- [Phase 02-semantic-locking]: defaultWasmPaths() resolves paths relative to import.meta.url — same CWD-independence pattern as migrate.ts
+- [Phase 02-semantic-locking]: timestamp_ms mode for locks.acquiredAt/expiresAt — enables numeric Date.now() comparison without Date object overhead
+- [Phase 02-semantic-locking]: symbolPath unique index enforced at DB level — prevents race conditions on concurrent lock acquire calls
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T04:45:19.747Z
-Stopped at: Completed 01-foundation-01-03-PLAN.md
+Last session: 2026-03-26T05:19:58.955Z
+Stopped at: Completed 02-semantic-locking-02-01-PLAN.md
 Resume file: None
