@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ -d .wit ]; then wit status --json 2>/dev/null && echo \"[wit] Coordination state loaded. Use wit:coordinate skill for multi-agent workflow.\" || echo \"[wit] Daemon not running. Run wit init to start.\"; fi'"
+          }
+        ]
+      }
+    ]
+  }
+}

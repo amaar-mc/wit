@@ -1,0 +1,35 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "wit-marketplace",
+  "owner": {
+    "name": "Amaar Chughtai",
+    "email": "amaardevx@gmail.com"
+  },
+  "metadata": {
+    "description": "Wit — Agent Coordination Protocol. Prevents merge conflicts when multiple AI agents work on the same codebase.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "wit",
+      "source": ".",
+      "description": "Coordinate multiple AI agents on the same codebase. Declares intents, locks symbols, detects conflicts — before code is written.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Amaar Chughtai"
+      },
+      "homepage": "https://github.com/amaarchughtai/wit",
+      "repository": "https://github.com/amaarchughtai/wit",
+      "license": "MIT",
+      "keywords": [
+        "ai",
+        "agents",
+        "coordination",
+        "merge-conflicts",
+        "multi-agent",
+        "claude-code"
+      ],
+      "category": "development"
+    }
+  ]
+}

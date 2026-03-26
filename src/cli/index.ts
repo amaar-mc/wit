@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { Cli, Builtins } from "clipanion";
 import { InitCommand } from "./commands/init";
 import { HookInstallCommand, CheckContractsCommand } from "./commands/hook";

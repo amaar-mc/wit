@@ -1,0 +1,21 @@
+{
+  "name": "wit",
+  "version": "0.1.0",
+  "description": "Coordinate multiple AI agents working on the same codebase. Prevents merge conflicts before code is written.",
+  "author": {
+    "name": "Amaar Chughtai",
+    "url": "https://github.com/amaarchughtai"
+  },
+  "homepage": "https://github.com/amaarchughtai/wit",
+  "repository": "https://github.com/amaarchughtai/wit",
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "agents",
+    "coordination",
+    "merge-conflicts",
+    "multi-agent"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}

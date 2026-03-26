@@ -1,0 +1,10 @@
+.planning/
+.git/
+.cursor/
+.wit/
+sample-project/
+*.test.ts
+.claude-plugin/
+skills/
+hooks/
+marketplace.json

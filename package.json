@@ -1,10 +1,39 @@
 {
-  "name": "wit",
+  "name": "wit-protocol",
+  "version": "0.1.0",
+  "description": "Coordinate multiple AI coding agents on the same codebase. Declare intents, lock symbols, detect conflicts — before code is written.",
   "module": "index.ts",
   "type": "module",
-  "private": true,
   "bin": {
     "wit": "src/cli/index.ts"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "coordination",
+    "merge-conflicts",
+    "tree-sitter",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "multi-agent",
+    "locking",
+    "git"
+  ],
+  "author": "Amaar Chughtai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amaarchughtai/wit"
+  },
+  "homepage": "https://github.com/amaarchughtai/wit",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "generate": "bunx drizzle-kit generate"
   },
   "devDependencies": {
     "@types/bun": "latest",
