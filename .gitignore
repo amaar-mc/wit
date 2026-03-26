@@ -32,3 +32,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# wit coordination state (local per machine)
+.wit/
+
+# editors
+.cursor/
+.vscode/
+
+# planning (development only)
+.planning/
