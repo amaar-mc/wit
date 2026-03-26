@@ -51,11 +51,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **APIC-01**: HTTP/JSON-RPC API exposed over Unix domain socket at `.wit/daemon.sock`
 - [x] **APIC-02**: CLI command `wit init` creates `.wit/` directory and initializes SQLite schema
-- [ ] **APIC-03**: CLI command `wit status` shows all active intents, locks, contracts, and conflicts
-- [ ] **APIC-04**: CLI command `wit declare` registers an intent for the calling agent
-- [ ] **APIC-05**: CLI command `wit lock` acquires a semantic lock on a specified symbol
-- [ ] **APIC-06**: CLI command `wit release` releases a held lock
-- [ ] **APIC-07**: All CLI commands support `--json` flag for machine-readable output
+- [x] **APIC-03**: CLI command `wit status` shows all active intents, locks, contracts, and conflicts
+- [x] **APIC-04**: CLI command `wit declare` registers an intent for the calling agent
+- [x] **APIC-05**: CLI command `wit lock` acquires a semantic lock on a specified symbol
+- [x] **APIC-06**: CLI command `wit release` releases a held lock
+- [x] **APIC-07**: All CLI commands support `--json` flag for machine-readable output
 - [ ] **APIC-08**: `wit watch` command polls and displays live coordination state changes
 - [x] **APIC-09**: Open protocol spec document (markdown + JSON Schema) describing all API methods
 
@@ -118,11 +118,11 @@ Deferred to future release. Tracked but not in current roadmap.
 | CONT-01 | Phase 3 | Complete |
 | CONT-02 | Phase 3 | Complete |
 | CONT-03 | Phase 3 | Complete |
-| APIC-03 | Phase 4 | Pending |
-| APIC-04 | Phase 4 | Pending |
-| APIC-05 | Phase 4 | Pending |
-| APIC-06 | Phase 4 | Pending |
-| APIC-07 | Phase 4 | Pending |
+| APIC-03 | Phase 4 | Complete |
+| APIC-04 | Phase 4 | Complete |
+| APIC-05 | Phase 4 | Complete |
+| APIC-06 | Phase 4 | Complete |
+| APIC-07 | Phase 4 | Complete |
 | APIC-08 | Phase 4 | Pending |
 | APIC-09 | Phase 4 | Complete |
 | INTN-04 | Phase 4 | Pending |

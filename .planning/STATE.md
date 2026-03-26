@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 04-polish-04-03-PLAN.md
-last_updated: "2026-03-26T07:04:28.279Z"
+stopped_at: Completed 04-polish-04-01-PLAN.md
+last_updated: "2026-03-26T07:06:34.975Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
   percent: 33
 ---
 
@@ -60,6 +60,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 03-coordination P02 | 3 | 1 tasks | 3 files |
 | Phase 03-coordination P03 | -402 | 2 tasks | 8 files |
 | Phase 04-polish P03 | 3 | 2 tasks | 2 files |
+| Phase 04-polish P01 | 5 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,10 @@ Recent decisions affecting current work:
 - [Phase 04-polish]: PROTOCOL.md structured for top-to-bottom reading: transport -> envelope -> lifecycle -> methods -> types -> errors
 - [Phase 04-polish]: openrpc.json uses components/schemas with $ref for CallerWarning, ConflictItem, ConflictReport, LockRecord — avoids inline duplication
 - [Phase 04-polish]: ConflictItem modeled as oneOf with discriminator.propertyName: type — standard OpenRPC pattern for tagged unions
+- [Phase 04-polish]: clipanion moved from devDependencies to dependencies — required at runtime for compiled binary
+- [Phase 04-polish]: getSessionId(witDir) throws actionable error if .wit/session.id missing — never silently returns empty
+- [Phase 04-polish]: writeSessionId derives stable ID from USER@cwd — deterministic across restarts without UUID generation
+- [Phase 04-polish]: StatusCommand calls all three RPC queries in parallel via Promise.all — single round-trip cost
 
 ### Pending Todos
 
@@ -115,6 +120,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T07:04:28.277Z
-Stopped at: Completed 04-polish-04-03-PLAN.md
+Last session: 2026-03-26T07:06:34.972Z
+Stopped at: Completed 04-polish-04-01-PLAN.md
 Resume file: None
