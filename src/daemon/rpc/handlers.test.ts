@@ -1254,3 +1254,439 @@ describe("intent.query", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// conflict detection — intent.declare ConflictReport
+// ---------------------------------------------------------------------------
+
+type ConflictItem =
+  | { type: "INTENT_OVERLAP"; overlappingIntentId: string; overlappingSessionId: string; description: string }
+  | { type: "LOCK_INTERSECTION"; symbolPath: string; heldBy: string; expiresAt: string }
+  | { type: "DEP_CHAIN"; intentSymbol: string; lockedCallee: string; heldBy: string };
+
+type ConflictReport = { hasConflicts: boolean; items: ConflictItem[] };
+
+describe("intent.declare conflict detection (INTENT_OVERLAP)", () => {
+  let tmpDir: string;
+  let deps: DaemonDeps;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-conflict-overlap-test-"));
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: stubParserService };
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("no conflicts returns {hasConflicts: false, items: []}", async () => {
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "solo work",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { intentId: string; conflicts: ConflictReport };
+      expect(data.intentId).toBeDefined();
+      expect(data.conflicts).toEqual({ hasConflicts: false, items: [] });
+    }
+  });
+
+  test("file-level intent on same file as existing file-level intent produces INTENT_OVERLAP", async () => {
+    // Session A declares file-level intent on src/auth.ts
+    await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "refactor auth",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    // Session B declares file-level intent on same file
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-b",
+        description: "fix auth bug",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { intentId: string; conflicts: ConflictReport };
+      expect(data.conflicts.hasConflicts).toBe(true);
+      const overlap = data.conflicts.items.find((i) => i.type === "INTENT_OVERLAP");
+      expect(overlap).toBeDefined();
+      const item = overlap as Extract<ConflictItem, { type: "INTENT_OVERLAP" }>;
+      expect(item.overlappingSessionId).toBe("session-a");
+    }
+  });
+
+  test("file-level intent does NOT overlap with intent on a different file", async () => {
+    await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "work on utils",
+        files: ["src/utils.ts"],
+      }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-b",
+        description: "work on auth",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      expect(data.conflicts.hasConflicts).toBe(false);
+      expect(data.conflicts.items).toHaveLength(0);
+    }
+  });
+
+  test("same session declaring a second intent on the same file does NOT produce INTENT_OVERLAP", async () => {
+    // Overlap detection must exclude intents from the same session
+    await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "first",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "second",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      expect(data.conflicts.hasConflicts).toBe(false);
+    }
+  });
+
+  test("abandoned or resolved intents do NOT trigger INTENT_OVERLAP", async () => {
+    // Session A declares then abandons
+    const declareResult = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "abandoned work",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+    if ("result" in declareResult) {
+      const { intentId } = declareResult.result as { intentId: string };
+      await handleRpc(
+        makeRequest("intent.update", { intentId, sessionId: "session-a", status: "abandoned" }),
+        deps,
+      );
+    }
+
+    // Session B should NOT see a conflict
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-b",
+        description: "fresh start",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      expect(data.conflicts.hasConflicts).toBe(false);
+    }
+  });
+});
+
+describe("intent.declare conflict detection (LOCK_INTERSECTION)", () => {
+  let tmpDir: string;
+  let deps: DaemonDeps;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-conflict-lock-test-"));
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: stubParserService };
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("declaring intent on symbol locked by another session produces LOCK_INTERSECTION", async () => {
+    const { locks: locksTable } = await import("../../db/schema");
+
+    // Another session holds a lock on src/auth.ts:validateToken
+    await deps.db.insert(locksTable).values({
+      symbolPath: "src/auth.ts:validateToken",
+      sessionId: "session-locker",
+      acquiredAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-b",
+        description: "modify validateToken",
+        files: ["src/auth.ts"],
+        symbols: ["validateToken"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      expect(data.conflicts.hasConflicts).toBe(true);
+      const lockItem = data.conflicts.items.find((i) => i.type === "LOCK_INTERSECTION");
+      expect(lockItem).toBeDefined();
+      const item = lockItem as Extract<ConflictItem, { type: "LOCK_INTERSECTION" }>;
+      expect(item.symbolPath).toBe("src/auth.ts:validateToken");
+      expect(item.heldBy).toBe("session-locker");
+      expect(item.expiresAt).toBeDefined();
+    }
+  });
+
+  test("intent on symbol locked by SAME session does NOT produce LOCK_INTERSECTION", async () => {
+    const { locks: locksTable } = await import("../../db/schema");
+
+    // Same session holds the lock
+    await deps.db.insert(locksTable).values({
+      symbolPath: "src/auth.ts:validateToken",
+      sessionId: "session-a",
+      acquiredAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "my own lock",
+        files: ["src/auth.ts"],
+        symbols: ["validateToken"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      const lockItem = data.conflicts.items.find((i) => i.type === "LOCK_INTERSECTION");
+      expect(lockItem).toBeUndefined();
+    }
+  });
+
+  test("intent on symbol with EXPIRED lock does NOT produce LOCK_INTERSECTION", async () => {
+    const { locks: locksTable } = await import("../../db/schema");
+
+    // Expired lock
+    await deps.db.insert(locksTable).values({
+      symbolPath: "src/auth.ts:validateToken",
+      sessionId: "session-old",
+      acquiredAt: new Date(Date.now() - 120_000),
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-b",
+        description: "fresh",
+        files: ["src/auth.ts"],
+        symbols: ["validateToken"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      const lockItem = data.conflicts.items.find((i) => i.type === "LOCK_INTERSECTION");
+      expect(lockItem).toBeUndefined();
+    }
+  });
+
+  test("intent with no symbols has no LOCK_INTERSECTION even if locks exist", async () => {
+    const { locks: locksTable } = await import("../../db/schema");
+
+    await deps.db.insert(locksTable).values({
+      symbolPath: "src/auth.ts:validateToken",
+      sessionId: "session-locker",
+      acquiredAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-b",
+        description: "file-level, no symbols",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      const lockItem = data.conflicts.items.find((i) => i.type === "LOCK_INTERSECTION");
+      expect(lockItem).toBeUndefined();
+    }
+  });
+});
+
+describe("intent.declare conflict detection (DEP_CHAIN)", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-conflict-depchain-test-"));
+    repoDir = join(tmpDir, "repo");
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  test("intent on symbol whose callee is locked by another session produces DEP_CHAIN", async () => {
+    // callerFn calls calleeFn in the source file
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function callerFn(): void {
+  calleeFn();
+}
+function calleeFn(): void {}
+`,
+    );
+
+    // Populate symbol_deps by having session-b acquire a lock on calleeFn
+    await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:calleeFn",
+        sessionId: "session-b",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    // Session A now declares intent on callerFn — whose callee (calleeFn) is locked by session-b
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "modify callerFn",
+        files: ["src/auth.ts"],
+        symbols: ["callerFn"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      expect(data.conflicts.hasConflicts).toBe(true);
+      const depItem = data.conflicts.items.find((i) => i.type === "DEP_CHAIN");
+      expect(depItem).toBeDefined();
+      const item = depItem as Extract<ConflictItem, { type: "DEP_CHAIN" }>;
+      expect(item.intentSymbol).toBe("src/auth.ts:callerFn");
+      expect(item.lockedCallee).toBe("src/auth.ts:calleeFn");
+      expect(item.heldBy).toBe("session-b");
+    }
+  });
+
+  test("intent on symbol whose callee is locked by SAME session does NOT produce DEP_CHAIN", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function callerFn(): void {
+  calleeFn();
+}
+function calleeFn(): void {}
+`,
+    );
+
+    // Same session holds the callee lock
+    await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:calleeFn",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "modify callerFn",
+        files: ["src/auth.ts"],
+        symbols: ["callerFn"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      const depItem = data.conflicts.items.find((i) => i.type === "DEP_CHAIN");
+      expect(depItem).toBeUndefined();
+    }
+  });
+
+  test("intent with no symbol_deps entries produces no DEP_CHAIN", async () => {
+    // No lock.acquire means no symbol_deps rows populated
+    // Intent with symbols but no deps -> no DEP_CHAIN
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId: "session-a",
+        description: "isolated symbol",
+        files: ["src/auth.ts"],
+        symbols: ["isolatedFn"],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { conflicts: ConflictReport };
+      const depItem = data.conflicts.items.find((i) => i.type === "DEP_CHAIN");
+      expect(depItem).toBeUndefined();
+    }
+  });
+});
