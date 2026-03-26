@@ -1,6 +1,6 @@
 {
   "name": "wit-protocol",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Coordinate multiple AI coding agents on the same codebase. Declare intents, lock symbols, detect conflicts — before code is written.",
   "module": "index.ts",
   "type": "module",
