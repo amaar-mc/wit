@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-semantic-locking-02-02-PLAN.md
-last_updated: "2026-03-26T05:25:56.139Z"
+stopped_at: Completed 02-semantic-locking-02-03-PLAN.md
+last_updated: "2026-03-26T05:32:02.900Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 33
 ---
 
@@ -55,6 +55,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 01-foundation P03 | 7min | 2 tasks | 7 files |
 | Phase 02-semantic-locking P01 | 2min | 2 tasks | 7 files |
 | Phase 02-semantic-locking P02 | 3min | 2 tasks | 7 files |
+| Phase 02-semantic-locking P03 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - [Phase 02-semantic-locking]: runTtlCleanup exported separately from startTtlCleanup — enables tests to trigger cleanup logic without real intervals
 - [Phase 02-semantic-locking]: Expired-lock takeover uses upsert onConflictDoUpdate — avoids delete+insert race on concurrent acquires
 - [Phase 02-semantic-locking]: symbolPath must contain ':' separator (zod refine) — validates format at RPC boundary before DB access
+- [Phase 02-semantic-locking]: Parent walk finds innermost function boundary: arrow functions resolve name from parent variable_declarator, anonymous arrows produce no edge
+- [Phase 02-semantic-locking]: symbol_deps fully replaced per file on each lock.acquire (delete old + insert new) — prevents stale edge accumulation
+- [Phase 02-semantic-locking]: Caller warnings are informational only — lock.acquire always succeeds, warnings in response body
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T05:25:56.136Z
-Stopped at: Completed 02-semantic-locking-02-02-PLAN.md
+Last session: 2026-03-26T05:32:02.898Z
+Stopped at: Completed 02-semantic-locking-02-03-PLAN.md
 Resume file: None

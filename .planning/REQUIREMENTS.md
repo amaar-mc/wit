@@ -31,8 +31,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **LOCK-04**: Tree-sitter WASM parsing extracts symbol boundaries for Python files
 - [x] **LOCK-05**: Every lock has TTL; daemon background job clears expired locks automatically
 - [x] **LOCK-06**: Any agent can query lock status: what's locked, by whom, TTL remaining
-- [ ] **LOCK-07**: Dependency graph (call edges between symbols) stored in SQLite and updated on parse
-- [ ] **LOCK-08**: Agents touching callers of a locked symbol receive a warning (not a block)
+- [x] **LOCK-07**: Dependency graph (call edges between symbols) stored in SQLite and updated on parse
+- [x] **LOCK-08**: Agents touching callers of a locked symbol receive a warning (not a block)
 
 ### Conflict Prevention
 
@@ -106,8 +106,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | LOCK-04 | Phase 2 | Complete |
 | LOCK-05 | Phase 2 | Complete |
 | LOCK-06 | Phase 2 | Complete |
-| LOCK-07 | Phase 2 | Pending |
-| LOCK-08 | Phase 2 | Pending |
+| LOCK-07 | Phase 2 | Complete |
+| LOCK-08 | Phase 2 | Complete |
 | INTN-01 | Phase 3 | Pending |
 | INTN-02 | Phase 3 | Pending |
 | INTN-03 | Phase 3 | Pending |
