@@ -67,9 +67,9 @@ cd your-project
 wit init
 ```
 
-This creates a `.wit/` directory, starts the daemon, and generates a session ID. You only run this once per project — the daemon auto-starts on subsequent commands.
+This creates a `.wit/` directory, starts the daemon, and generates a `CLAUDE.md` with coordination instructions. You only run this once per project — the daemon auto-starts on subsequent commands.
 
-> **With the Claude Code plugin:** Agents run `wit init` automatically on session start if the CLI is installed but `.wit/` doesn't exist. You never need to type `wit` commands yourself — the agents handle coordination end-to-end.
+Every Claude Code session in this project will now automatically read the `CLAUDE.md` and follow the coordination protocol. Agents declare intents, lock symbols, and respect conflicts without any manual setup.
 
 ### Basic workflow
 
