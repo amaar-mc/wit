@@ -29,10 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. If the daemon crashes and leaves a stale PID file, the next CLI command recovers automatically and starts a fresh daemon without user intervention
   4. Every request and response over the Unix socket carries a `protocolVersion` field; a version mismatch returns a structured `VERSION_MISMATCH` error
   5. An agent can register a name and session ID with the daemon; all subsequent locks and intents reference that session
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Project scaffold, shared contracts (paths + protocol types), and SQLite/Drizzle database layer
+- [ ] 01-02-PLAN.md — Daemon process: Hono server on Unix socket, JSON-RPC routing, version middleware, agent registration, lifecycle management
+- [ ] 01-03-PLAN.md — CLI entry point, connect-or-spawn client, and `wit init` command
 
 ### Phase 2: Semantic Locking
 **Goal**: Agents can acquire and release symbol-level locks (functions, types, exports) using Tree-sitter AST parsing for TypeScript/JavaScript and Python, with TTL-based auto-cleanup and a full dependency graph for caller awareness
@@ -84,7 +86,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/3 | Planning complete | - |
 | 2. Semantic Locking | 0/? | Not started | - |
 | 3. Coordination | 0/? | Not started | - |
 | 4. Polish | 0/? | Not started | - |
