@@ -9,7 +9,7 @@ import { writeSessionId } from "../session";
 
 const CLAUDE_MD_CONTENT = `# Wit Coordination Protocol
 
-This project uses Wit for multi-agent coordination. **You MUST follow this protocol before editing any file.**
+This project uses Wit for multi-agent coordination. Multiple AI agents may be working on this codebase simultaneously. **You MUST follow this protocol.**
 
 ## On session start
 
@@ -29,28 +29,44 @@ export WIT_SESSION="agent-$(openssl rand -hex 8)"
    \`\`\`bash
    wit declare --description "Brief description" --files src/path/to/file.ts
    \`\`\`
-   If the response shows \`hasConflicts: true\`, another agent is working in the same area. Read the conflict details and adjust your plan to avoid the conflicting region.
+   If the response shows conflicts, read the details carefully and adjust your plan to avoid the conflicting region.
 
 3. **Lock specific symbols you plan to modify:**
    \`\`\`bash
    wit lock --symbol "src/path/to/file.ts:functionName"
    \`\`\`
-   If you get a \`LOCK_CONFLICT\`, another agent is actively editing that symbol. Do NOT edit it — work on something else instead.
+   If you get a \`LOCK_CONFLICT\`, another agent is actively editing that symbol. Do NOT edit it — work on other unlocked symbols first, then retry the locked symbol later.
+
+4. **ALWAYS re-read the file immediately before editing it.** Another agent may have modified it since you last read it. If you edit without re-reading, your changes may conflict or overwrite the other agent's work.
 
 ## After finishing your work
 
-4. **Release your locks:**
+5. **Release your locks:**
    \`\`\`bash
    wit release --symbol "src/path/to/file.ts:functionName"
    \`\`\`
+
+## Handling locked symbols
+
+When a symbol you need is locked by another agent:
+- Do NOT give up or end your task early.
+- Work on other parts of the task that are not locked.
+- Periodically retry the locked symbol:
+  \`\`\`bash
+  wit lock --symbol "src/path/to/file.ts:functionName"
+  \`\`\`
+- Once the lock is acquired, re-read the file, then make your changes.
+- Continue retrying until all parts of your task are complete.
 
 ## Rules
 
 - ALWAYS run \`export WIT_SESSION=...\` at the start of your session. Never skip this.
 - ALWAYS declare and lock BEFORE editing. Never skip this.
-- If you get a conflict or lock error, do NOT proceed with editing that symbol. Adjust your approach.
+- ALWAYS re-read files before editing when conflicts were detected.
+- If you get a LOCK_CONFLICT, do NOT skip that work permanently. Retry until the lock is released.
 - Lock at the symbol level (function, class, type), not the file level.
 - Release locks when you're done.
+- Do NOT end your task with unfinished work due to lock conflicts. Keep working.
 `;
 
 export class InitCommand extends Command {
