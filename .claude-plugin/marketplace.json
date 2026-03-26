@@ -12,7 +12,10 @@
   "plugins": [
     {
       "name": "wit",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "amaar-mc/wit"
+      },
       "description": "Coordinate multiple AI agents on the same codebase. Declares intents, locks symbols, detects conflicts — before code is written.",
       "version": "0.1.0",
       "author": {
