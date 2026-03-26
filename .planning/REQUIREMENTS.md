@@ -43,9 +43,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Contracts
 
-- [ ] **CONT-01**: Agent can propose an interface contract (function signature, type shape) for a code region
-- [ ] **CONT-02**: Other agents can accept or reject a proposed contract
-- [ ] **CONT-03**: Contract enforcement via git pre-commit hook — commit blocked if it violates accepted contracts
+- [x] **CONT-01**: Agent can propose an interface contract (function signature, type shape) for a code region
+- [x] **CONT-02**: Other agents can accept or reject a proposed contract
+- [x] **CONT-03**: Contract enforcement via git pre-commit hook — commit blocked if it violates accepted contracts
 
 ### API & CLI
 
@@ -115,9 +115,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | CONF-02 | Phase 3 | Complete |
 | CONF-03 | Phase 3 | Complete |
 | CONF-04 | Phase 3 | Complete |
-| CONT-01 | Phase 3 | Pending |
-| CONT-02 | Phase 3 | Pending |
-| CONT-03 | Phase 3 | Pending |
+| CONT-01 | Phase 3 | Complete |
+| CONT-02 | Phase 3 | Complete |
+| CONT-03 | Phase 3 | Complete |
 | APIC-03 | Phase 4 | Pending |
 | APIC-04 | Phase 4 | Pending |
 | APIC-05 | Phase 4 | Pending |
