@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import Parser from "web-tree-sitter";
 
@@ -8,12 +9,29 @@ export type ParserService = {
   parser: Parser;
 };
 
-// Resolve WASM paths relative to this file's location — same CWD-independence
-// pattern as migrate.ts, since the daemon has unpredictable CWD after detach.
+// Resolve WASM paths by searching up from this file's location.
+// Bun global install hoists deps to a parent node_modules, so we walk
+// upward until we find the WASM files rather than assuming a fixed depth.
 export function defaultWasmPaths(): { wasmDir: string; treeSitterWasm: string } {
   const thisDir = fileURLToPath(new URL(".", import.meta.url));
-  const nodeModules = join(thisDir, "../../node_modules");
+  let dir = thisDir;
 
+  for (let i = 0; i < 10; i++) {
+    const candidate = join(dir, "node_modules");
+    const tsWasm = join(candidate, "web-tree-sitter/tree-sitter.wasm");
+    if (existsSync(tsWasm)) {
+      return {
+        wasmDir: join(candidate, "tree-sitter-wasms/out"),
+        treeSitterWasm: tsWasm,
+      };
+    }
+    const parent = join(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // Fallback to original relative path
+  const nodeModules = join(thisDir, "../../node_modules");
   return {
     wasmDir: join(nodeModules, "tree-sitter-wasms/out"),
     treeSitterWasm: join(nodeModules, "web-tree-sitter/tree-sitter.wasm"),
