@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-foundation-01-01-PLAN.md
-last_updated: "2026-03-26T04:29:28.047Z"
+stopped_at: Completed 01-foundation-01-02-PLAN.md
+last_updated: "2026-03-26T04:35:17.210Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 33
 ---
 
@@ -51,6 +51,7 @@ Progress: [███░░░░░░░] 33%
 
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 4min | 3 tasks | 11 files |
+| Phase 01-foundation P02 | 8min | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: createDatabase returns {db, sqlite} tuple so callers retain raw sqlite handle for explicit close on shutdown
 - [Phase 01-foundation]: witPaths(root) exported as test utility — avoids process.env mutation in tests
 - [Phase 01-foundation]: All .wit/ path constants derived from WIT_REPO_ROOT env var with cwd() fallback at module level
+- [Phase 01-foundation]: createApp(DaemonDeps) factory for test-friendly Hono app — no module-level singletons in daemon
+- [Phase 01-foundation]: Drizzle .returning({id}) used for insert row ID — .run() returns void in Drizzle bun-sqlite type system
+- [Phase 01-foundation]: RPC body parsed once in middleware and stashed in context via c.set('rpcBody') — handlers never re-parse
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T04:29:28.045Z
-Stopped at: Completed 01-foundation-01-01-PLAN.md
+Last session: 2026-03-26T04:35:17.208Z
+Stopped at: Completed 01-foundation-01-02-PLAN.md
 Resume file: None
