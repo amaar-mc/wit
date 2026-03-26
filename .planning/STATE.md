@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: planning
+stopped_at: Completed 01-foundation-01-01-PLAN.md
+last_updated: "2026-03-26T04:29:28.047Z"
+last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 0 of ? in current phase
 Status: Ready to plan
 Last activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-foundation P01 | 4min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -46,6 +63,9 @@ Recent decisions affecting current work:
 - WASM only for Tree-sitter — no native bindings, zero build step for users
 - Unix domain socket primary transport (localhost:7337 fallback for Windows if needed)
 - Warn callers of locked symbols, never block — transitive blocking kills throughput
+- [Phase 01-foundation]: createDatabase returns {db, sqlite} tuple so callers retain raw sqlite handle for explicit close on shutdown
+- [Phase 01-foundation]: witPaths(root) exported as test utility — avoids process.env mutation in tests
+- [Phase 01-foundation]: All .wit/ path constants derived from WIT_REPO_ROOT env var with cwd() fallback at module level
 
 ### Pending Todos
 
@@ -58,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25
-Stopped at: Roadmap created — ROADMAP.md, STATE.md written, REQUIREMENTS.md traceability updated
+Last session: 2026-03-26T04:29:28.045Z
+Stopped at: Completed 01-foundation-01-01-PLAN.md
 Resume file: None

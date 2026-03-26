@@ -10,10 +10,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Daemon & Infrastructure
 
 - [ ] **INFR-01**: Daemon process starts automatically on first CLI/API use and persists coordination state
-- [ ] **INFR-02**: SQLite database in `.wit/` with WAL mode, busy_timeout, and ACID guarantees
+- [x] **INFR-02**: SQLite database in `.wit/` with WAL mode, busy_timeout, and ACID guarantees
 - [ ] **INFR-03**: PID file management with stale PID detection and automatic recovery after crash
-- [ ] **INFR-04**: Protocol version field in every request/response with structured VERSION_MISMATCH error
-- [ ] **INFR-05**: Agent registers with name and session ID on connect; all locks/intents attributed to session
+- [x] **INFR-04**: Protocol version field in every request/response with structured VERSION_MISMATCH error
+- [x] **INFR-05**: Agent registers with name and session ID on connect; all locks/intents attributed to session
 - [ ] **INFR-06**: Daemon clean shutdown on SIGTERM/SIGINT with state flush
 
 ### Intent Tracking
@@ -93,10 +93,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | INFR-01 | Phase 1 | Pending |
-| INFR-02 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 1 | Pending |
-| INFR-04 | Phase 1 | Pending |
-| INFR-05 | Phase 1 | Pending |
+| INFR-04 | Phase 1 | Complete |
+| INFR-05 | Phase 1 | Complete |
 | INFR-06 | Phase 1 | Pending |
 | APIC-01 | Phase 1 | Pending |
 | APIC-02 | Phase 1 | Pending |
