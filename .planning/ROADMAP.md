@@ -48,9 +48,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Tree-sitter WASM parser service, TS/Python symbol extraction, and locks + symbol_deps schema
-- [ ] 02-02-PLAN.md — Lock acquire/release/query RPC handlers, TTL cleanup loop, parser wired into daemon
-- [ ] 02-03-PLAN.md — Call edge extraction, symbol_deps population on lock.acquire, caller warnings
+- [x] 02-01-PLAN.md — Tree-sitter WASM parser service, TS/Python symbol extraction, and locks + symbol_deps schema
+- [x] 02-02-PLAN.md — Lock acquire/release/query RPC handlers, TTL cleanup loop, parser wired into daemon
+- [x] 02-03-PLAN.md — Call edge extraction, symbol_deps population on lock.acquire, caller warnings
 
 ### Phase 3: Coordination
 **Goal**: The full pre-write coordination loop — agents declare intents, receive conflict warnings based on overlapping intents and locked regions, and can propose and accept interface contracts with other agents
@@ -61,10 +61,12 @@ Plans:
   2. When two agents declare intents targeting the same code region, both receive a structured conflict report identifying the overlap before either writes code
   3. When an agent's intent overlaps an active lock held by another agent, the daemon returns a conflict report synchronously at declare-time
   4. An agent can propose an interface contract (function signature or type shape) and another agent can accept or reject it; an accepted contract is enforced via a git pre-commit hook that blocks commits violating it
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Intent lifecycle: intents schema, intent.declare/update/query RPC handlers with byte-range resolution
+- [ ] 03-02-PLAN.md — Conflict detection: ConflictReport types, overlapping intents, lock intersections, dep chain warnings wired into intent.declare
+- [ ] 03-03-PLAN.md — Contracts: propose/respond RPC, signature extraction via tree-sitter, git pre-commit hook enforcement
 
 ### Phase 4: Polish
 **Goal**: Full CLI command surface, human-readable coordination output, `wit watch` for live state monitoring, intent-to-commit git linkage, and an open protocol spec document that enables third-party agent adoption
@@ -84,11 +86,11 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-03-26 |
 | 2. Semantic Locking | 3/3 | Complete    | 2026-03-26 |
-| 3. Coordination | 0/? | Not started | - |
+| 3. Coordination | 0/3 | In progress | - |
 | 4. Polish | 0/? | Not started | - |
