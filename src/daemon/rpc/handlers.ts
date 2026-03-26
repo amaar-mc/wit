@@ -34,15 +34,19 @@ export async function handleRpc(
       }
       const { name, sessionId } = parsed.data;
       try {
-        const result = deps.db
+        const rows = await deps.db
           .insert(agents)
           .values({
             name,
             sessionId,
             connectedAt: new Date(),
           })
-          .run();
-        return createRpcSuccess(body.id, { agentId: result.lastInsertRowid });
+          .returning({ id: agents.id });
+        const inserted = rows[0];
+        if (!inserted) {
+          return createRpcError(body.id, -32000, "Failed to insert agent — no row returned");
+        }
+        return createRpcSuccess(body.id, { agentId: inserted.id });
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Failed to register agent";
