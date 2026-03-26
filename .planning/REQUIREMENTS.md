@@ -18,9 +18,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Intent Tracking
 
-- [ ] **INTN-01**: Agent can declare intent describing planned work scope before writing code
-- [ ] **INTN-02**: Intent has lifecycle: declared → active → resolved/abandoned with timestamp tracking
-- [ ] **INTN-03**: Any agent can query all active intents (list, filter by agent, file, or scope)
+- [x] **INTN-01**: Agent can declare intent describing planned work scope before writing code
+- [x] **INTN-02**: Intent has lifecycle: declared → active → resolved/abandoned with timestamp tracking
+- [x] **INTN-03**: Any agent can query all active intents (list, filter by agent, file, or scope)
 - [ ] **INTN-04**: Intent-to-commit linkage via git trailer connecting declared intent to actual commit
 
 ### Semantic Locking
@@ -108,9 +108,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | LOCK-06 | Phase 2 | Complete |
 | LOCK-07 | Phase 2 | Complete |
 | LOCK-08 | Phase 2 | Complete |
-| INTN-01 | Phase 3 | Pending |
-| INTN-02 | Phase 3 | Pending |
-| INTN-03 | Phase 3 | Pending |
+| INTN-01 | Phase 3 | Complete |
+| INTN-02 | Phase 3 | Complete |
+| INTN-03 | Phase 3 | Complete |
 | CONF-01 | Phase 3 | Pending |
 | CONF-02 | Phase 3 | Pending |
 | CONF-03 | Phase 3 | Pending |
