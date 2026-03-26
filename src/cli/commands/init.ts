@@ -4,6 +4,7 @@ import { WIT_DIR, DB_PATH } from "../../shared/paths";
 import { createDatabase } from "../../db/index";
 import { runMigrations } from "../../db/migrate";
 import { ensureDaemon } from "../client";
+import { writeSessionId } from "../session";
 
 export class InitCommand extends Command {
   static override paths = [["init"]];
@@ -14,6 +15,9 @@ export class InitCommand extends Command {
   async execute(): Promise<number> {
     // Create .wit/ directory — recursive so it's a no-op if already exists
     mkdirSync(WIT_DIR, { recursive: true });
+
+    // Persist a stable session ID derived from user@cwd — survives CLI restarts
+    writeSessionId(WIT_DIR);
 
     // Open/create the SQLite database and apply schema migrations
     const { db, sqlite } = createDatabase(DB_PATH);
