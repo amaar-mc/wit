@@ -36,10 +36,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Conflict Prevention
 
-- [ ] **CONF-01**: Overlapping intent detection — flag when two agents declare intents targeting the same code region
-- [ ] **CONF-02**: Locked region intersection — flag when an agent's intent overlaps an active lock held by another agent
-- [ ] **CONF-03**: Dependency graph traversal — warn when intent touches symbols in the call chain of a locked symbol
-- [ ] **CONF-04**: Structured conflict report returned synchronously when agent declares intent or acquires lock
+- [x] **CONF-01**: Overlapping intent detection — flag when two agents declare intents targeting the same code region
+- [x] **CONF-02**: Locked region intersection — flag when an agent's intent overlaps an active lock held by another agent
+- [x] **CONF-03**: Dependency graph traversal — warn when intent touches symbols in the call chain of a locked symbol
+- [x] **CONF-04**: Structured conflict report returned synchronously when agent declares intent or acquires lock
 
 ### Contracts
 
@@ -111,10 +111,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | INTN-01 | Phase 3 | Complete |
 | INTN-02 | Phase 3 | Complete |
 | INTN-03 | Phase 3 | Complete |
-| CONF-01 | Phase 3 | Pending |
-| CONF-02 | Phase 3 | Pending |
-| CONF-03 | Phase 3 | Pending |
-| CONF-04 | Phase 3 | Pending |
+| CONF-01 | Phase 3 | Complete |
+| CONF-02 | Phase 3 | Complete |
+| CONF-03 | Phase 3 | Complete |
+| CONF-04 | Phase 3 | Complete |
 | CONT-01 | Phase 3 | Pending |
 | CONT-02 | Phase 3 | Pending |
 | CONT-03 | Phase 3 | Pending |

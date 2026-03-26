@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-coordination-03-01-PLAN.md
-last_updated: "2026-03-26T06:19:54.606Z"
+stopped_at: Completed 03-coordination-03-02-PLAN.md
+last_updated: "2026-03-26T06:25:13.193Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 33
 ---
 
@@ -57,6 +57,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 02-semantic-locking P02 | 3min | 2 tasks | 7 files |
 | Phase 02-semantic-locking P03 | 4 | 2 tasks | 4 files |
 | Phase 03-coordination P01 | 8 | 1 tasks | 4 files |
+| Phase 03-coordination P02 | 3 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Recent decisions affecting current work:
 - [Phase 03-coordination]: Files column stores comma-delimited paths with leading/trailing commas for exact LIKE segment matching
 - [Phase 03-coordination]: intent.query default filter returns only declared+active; explicit status param overrides for resolved/abandoned queries
 - [Phase 03-coordination]: VALID_TRANSITIONS map enforces forward-only intent lifecycle: declared->[active,resolved,abandoned], active->[resolved,abandoned]
+- [Phase 03-coordination]: Conflict detection as warnings only — intent.declare always succeeds, conflicts are informational per research anti-patterns
+- [Phase 03-coordination]: Symbol names qualified to file:symbolName at conflict check time (not stored qualified) — declare API stays ergonomic
+- [Phase 03-coordination]: File-level intents (null byte range) overlap with any intent on same file regardless of other intent's byte range
 
 ### Pending Todos
 
@@ -102,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T06:19:54.604Z
-Stopped at: Completed 03-coordination-03-01-PLAN.md
+Last session: 2026-03-26T06:25:13.190Z
+Stopped at: Completed 03-coordination-03-02-PLAN.md
 Resume file: None
