@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, gt, and, inArray, sql } from "drizzle-orm";
+import { eq, gt, and, inArray, ne, sql } from "drizzle-orm";
 import { join } from "node:path";
 import { agents, locks, symbolDeps, intents } from "../../db/schema";
 import {
@@ -8,6 +8,8 @@ import {
   type RpcRequest,
   type RpcSuccess,
   type RpcError,
+  type ConflictItem,
+  type ConflictReport,
 } from "../../shared/protocol";
 import type { DaemonDeps } from "../server";
 import { extractSymbols } from "../../parser/symbols";
@@ -207,6 +209,172 @@ async function resolveSymbolByteRange(
 
   if (minStart === null || maxEnd === null) return null;
   return { startByte: minStart, endByte: maxEnd };
+}
+
+// Find intents from other sessions that overlap with the given files/byte range.
+// Overlap definition:
+//   - File-level (null byte range on either side): any shared file in the files list
+//   - Byte-range: both intents have non-null ranges and startByte < other.endByte AND endByte > other.startByte
+async function findOverlappingIntents(
+  deps: DaemonDeps,
+  sessionId: string,
+  files: string[],
+  startByte: number | null,
+  endByte: number | null,
+): Promise<Array<Extract<ConflictItem, { type: "INTENT_OVERLAP" }>>> {
+  // Query all declared/active intents from OTHER sessions
+  const otherIntents = await deps.db
+    .select()
+    .from(intents)
+    .where(
+      and(
+        ne(intents.sessionId, sessionId),
+        inArray(intents.status, ["declared", "active"]),
+      ),
+    );
+
+  const results: Array<Extract<ConflictItem, { type: "INTENT_OVERLAP" }>> = [];
+
+  for (const other of otherIntents) {
+    // Check if there is any file overlap between the new intent and this existing intent
+    const otherFiles = other.files.split(",").filter((f) => f.length > 0);
+    const fileOverlap = files.some((f) => otherFiles.includes(f));
+    if (!fileOverlap) continue;
+
+    // File overlap exists — now check byte range
+    const newHasRange = startByte !== null && endByte !== null;
+    const otherHasRange = other.startByte !== null && other.endByte !== null;
+
+    if (newHasRange && otherHasRange) {
+      // Both have byte ranges: overlap only if ranges intersect
+      const intersects =
+        (startByte as number) < (other.endByte as number) &&
+        (endByte as number) > (other.startByte as number);
+      if (!intersects) continue;
+    }
+    // If either side has no byte range, any file overlap is an intent overlap (file-level intent)
+
+    results.push({
+      type: "INTENT_OVERLAP",
+      overlappingIntentId: other.id,
+      overlappingSessionId: other.sessionId,
+      description: other.description,
+    });
+  }
+
+  return results;
+}
+
+// Find active locks on any of the given symbol paths held by a DIFFERENT session.
+async function findLockConflicts(
+  deps: DaemonDeps,
+  sessionId: string,
+  symbolPaths: string[],
+): Promise<Array<Extract<ConflictItem, { type: "LOCK_INTERSECTION" }>>> {
+  if (symbolPaths.length === 0) return [];
+
+  const now = new Date();
+  const results: Array<Extract<ConflictItem, { type: "LOCK_INTERSECTION" }>> = [];
+
+  for (const symbolPath of symbolPaths) {
+    const rows = await deps.db
+      .select()
+      .from(locks)
+      .where(
+        and(
+          eq(locks.symbolPath, symbolPath),
+          gt(locks.expiresAt, now),
+          ne(locks.sessionId, sessionId),
+        ),
+      )
+      .limit(1);
+
+    const lock = rows[0];
+    if (lock) {
+      results.push({
+        type: "LOCK_INTERSECTION",
+        symbolPath: lock.symbolPath,
+        heldBy: lock.sessionId,
+        expiresAt: lock.expiresAt.toISOString(),
+      });
+    }
+  }
+
+  return results;
+}
+
+// Find active locks on callees of any of the given symbol paths held by a DIFFERENT session.
+// Mirrors buildCallerWarnings but inverted: checks callees instead of callers.
+async function findDepChainConflicts(
+  deps: DaemonDeps,
+  sessionId: string,
+  symbolPaths: string[],
+): Promise<Array<Extract<ConflictItem, { type: "DEP_CHAIN" }>>> {
+  if (symbolPaths.length === 0) return [];
+
+  const now = new Date();
+  const results: Array<Extract<ConflictItem, { type: "DEP_CHAIN" }>> = [];
+
+  for (const symbolPath of symbolPaths) {
+    // Find all callees of this symbol
+    const calleeRows = await deps.db
+      .select()
+      .from(symbolDeps)
+      .where(eq(symbolDeps.caller, symbolPath));
+
+    for (const row of calleeRows) {
+      const callee = row.callee;
+
+      // Check if callee has an active lock held by a different session
+      const lockRows = await deps.db
+        .select()
+        .from(locks)
+        .where(
+          and(
+            eq(locks.symbolPath, callee),
+            gt(locks.expiresAt, now),
+            ne(locks.sessionId, sessionId),
+          ),
+        )
+        .limit(1);
+
+      const lock = lockRows[0];
+      if (lock) {
+        results.push({
+          type: "DEP_CHAIN",
+          intentSymbol: symbolPath,
+          lockedCallee: callee,
+          heldBy: lock.sessionId,
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
+// Build the full ConflictReport for a newly declared intent.
+// All three detectors run and their results are concatenated.
+// Intent.declare always succeeds — conflicts are informational warnings only.
+async function buildConflictReport(
+  deps: DaemonDeps,
+  intent: {
+    id: string;
+    sessionId: string;
+    files: string[];
+    symbols: string[];
+    startByte: number | null;
+    endByte: number | null;
+  },
+): Promise<ConflictReport> {
+  const [overlaps, lockConflicts, depChains] = await Promise.all([
+    findOverlappingIntents(deps, intent.sessionId, intent.files, intent.startByte, intent.endByte),
+    findLockConflicts(deps, intent.sessionId, intent.symbols),
+    findDepChainConflicts(deps, intent.sessionId, intent.symbols),
+  ]);
+
+  const items: ConflictItem[] = [...overlaps, ...lockConflicts, ...depChains];
+  return { hasConflicts: items.length > 0, items };
 }
 
 export async function handleRpc(
@@ -425,7 +593,25 @@ export async function handleRpc(
         updatedAt: new Date(now),
       });
 
-      return createRpcSuccess(body.id, { intentId: id });
+      // Build qualified symbol paths (file:symbolName) for lock and dep-chain lookups
+      const symbolNames = symbols ?? [];
+      const qualifiedSymbolPaths: string[] = [];
+      for (const file of files) {
+        for (const sym of symbolNames) {
+          qualifiedSymbolPaths.push(`${file}:${sym}`);
+        }
+      }
+
+      const conflictReport = await buildConflictReport(deps, {
+        id,
+        sessionId,
+        files,
+        symbols: qualifiedSymbolPaths,
+        startByte,
+        endByte,
+      });
+
+      return createRpcSuccess(body.id, { intentId: id, conflicts: conflictReport });
     }
 
     case "intent.update": {

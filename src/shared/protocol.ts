@@ -1,5 +1,12 @@
 export const PROTOCOL_VERSION = "1" as const;
 
+export type ConflictItem =
+  | { type: "INTENT_OVERLAP"; overlappingIntentId: string; overlappingSessionId: string; description: string }
+  | { type: "LOCK_INTERSECTION"; symbolPath: string; heldBy: string; expiresAt: string }
+  | { type: "DEP_CHAIN"; intentSymbol: string; lockedCallee: string; heldBy: string };
+
+export type ConflictReport = { hasConflicts: boolean; items: ConflictItem[] };
+
 export interface RpcRequest {
   jsonrpc: "2.0";
   witVersion: typeof PROTOCOL_VERSION;
