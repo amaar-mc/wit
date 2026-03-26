@@ -3,6 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "wit": "src/cli/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "clipanion": "^4.0.0-rc.4",
