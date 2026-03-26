@@ -78,10 +78,12 @@ Plans:
   3. `wit watch` displays live coordination state updates as they happen, without requiring manual polling
   4. When a commit is made that was preceded by a declared intent, the commit carries a git trailer linking it to the intent ID
   5. The open protocol spec document (markdown + JSON Schema) fully describes all API methods so a third-party agent can implement the protocol without reading the source code
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — Core CLI commands (status, declare, lock, release) with --json support and session ID
+- [ ] 04-02-PLAN.md — wit watch live monitoring and intent-to-commit git trailer linkage
+- [ ] 04-03-PLAN.md — Open protocol specification (PROTOCOL.md + OpenRPC 1.4.0 openrpc.json)
 
 ## Progress
 
@@ -93,4 +95,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation | 3/3 | Complete    | 2026-03-26 |
 | 2. Semantic Locking | 3/3 | Complete    | 2026-03-26 |
 | 3. Coordination | 3/3 | Complete    | 2026-03-26 |
-| 4. Polish | 0/? | Not started | - |
+| 4. Polish | 0/3 | Not started | - |
