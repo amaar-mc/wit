@@ -1,5 +1,31 @@
 import { index, int, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+export const contracts = sqliteTable(
+  "contracts",
+  {
+    // UUID primary key
+    id: text("id").primaryKey(),
+    // References agents.sessionId logically — not a FK to allow agent disconnect
+    proposerSessionId: text("proposer_session_id").notNull(),
+    // Symbol path format: "src/auth.ts:validateToken"
+    symbolPath: text("symbol_path").notNull(),
+    // Normalized signature text: "(token: string): boolean"
+    signature: text("signature").notNull(),
+    // Lifecycle: proposed -> accepted | rejected
+    status: text("status").notNull().default("proposed"),
+    // Session that responded (accepted or rejected)
+    responderSessionId: text("responder_session_id"),
+    // timestamp_ms for numeric comparison — consistent with locks/intents pattern
+    proposedAt: int("proposed_at", { mode: "timestamp_ms" }).notNull(),
+    respondedAt: int("responded_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("contracts_symbol_path_idx").on(t.symbolPath),
+    index("contracts_status_idx").on(t.status),
+    index("contracts_proposer_session_id_idx").on(t.proposerSessionId),
+  ],
+);
+
 export const agents = sqliteTable("agents", {
   id: int("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),

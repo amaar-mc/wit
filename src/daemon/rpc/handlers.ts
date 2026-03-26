@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq, gt, and, inArray, ne, sql } from "drizzle-orm";
+import { eq, gt, and, inArray, ne, sql, like } from "drizzle-orm";
 import { join } from "node:path";
-import { agents, locks, symbolDeps, intents } from "../../db/schema";
+import { agents, locks, symbolDeps, intents, contracts } from "../../db/schema";
 import {
   createRpcSuccess,
   createRpcError,
@@ -14,6 +14,7 @@ import {
 import type { DaemonDeps } from "../server";
 import { extractSymbols } from "../../parser/symbols";
 import { extractCallEdges, qualifyEdges } from "../../parser/calls";
+import Parser from "web-tree-sitter";
 
 const RegisterParamsSchema = z.object({
   name: z.string().min(1),
@@ -55,6 +56,137 @@ const IntentQueryParamsSchema = z.object({
   file: z.string().optional(),
   status: z.string().optional(),
 });
+
+const ContractProposeParamsSchema = z.object({
+  sessionId: z.string().min(1),
+  // Format: "src/auth.ts:validateToken" — file derived from text before the colon
+  symbolPath: z.string().min(1).refine((s) => s.includes(":"), {
+    message: "symbolPath must contain ':' separator (e.g. 'src/auth.ts:functionName')",
+  }),
+});
+
+const ContractRespondParamsSchema = z.object({
+  contractId: z.string().min(1),
+  sessionId: z.string().min(1),
+  accept: z.boolean(),
+});
+
+const ContractQueryParamsSchema = z.object({
+  symbolPath: z.string().optional(),
+  status: z.string().optional(),
+});
+
+const CheckContractsParamsSchema = z.object({
+  files: z.array(
+    z.object({
+      path: z.string().min(1),
+      content: z.string(),
+    }),
+  ),
+});
+
+// Tree-sitter query for extracting function/method signatures from TypeScript.
+// Captures: @name (identifier), @params (formal_parameters), @return_type (optional type_annotation)
+const SIG_QUERY_TS = `
+  (function_declaration
+    name: (identifier) @name
+    parameters: (formal_parameters) @params
+    return_type: (type_annotation)? @return_type)
+
+  (variable_declarator
+    name: (identifier) @name
+    value: (arrow_function
+      parameters: (formal_parameters) @params
+      return_type: (type_annotation)? @return_type))
+
+  (method_definition
+    name: (property_identifier) @name
+    parameters: (formal_parameters) @params
+    return_type: (type_annotation)? @return_type)
+`;
+
+// Tree-sitter query for Python function signatures.
+// Python type annotations live in (typed_parameter) nodes inside the parameters.
+const SIG_QUERY_PY = `
+  (function_definition
+    name: (identifier) @name
+    parameters: (parameters) @params
+    return_type: (type)? @return_type)
+`;
+
+// Normalize a signature string: collapse runs of whitespace to single space, trim.
+function normalizeSignature(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+// Extract the normalized function signature (params + optional return type) for
+// the named symbol from the given source text.
+// Returns null if the symbol is not found or the language is unsupported.
+function extractSignatureFromSource(
+  parserService: DaemonDeps["parserService"],
+  source: string,
+  symbolName: string,
+  langId: "typescript" | "python",
+): string | null {
+  const language = langId === "typescript"
+    ? parserService.typescript
+    : parserService.python;
+
+  const sigQueryStr = langId === "typescript" ? SIG_QUERY_TS : SIG_QUERY_PY;
+
+  // Detect which query string the grammar supports (matches symbols.ts pattern)
+  let compiledQuery: Parser.Query;
+  try {
+    compiledQuery = language.query(sigQueryStr);
+  } catch {
+    return null;
+  }
+
+  // IMPORTANT: Do not await anything between setLanguage and parse
+  parserService.parser.setLanguage(language);
+  const tree = parserService.parser.parse(source);
+  const matches = compiledQuery.matches(tree.rootNode);
+
+  for (const match of matches) {
+    const nameCapture = match.captures.find((c) => c.name === "name");
+    if (!nameCapture || nameCapture.node.text !== symbolName) continue;
+
+    const paramsCapture = match.captures.find((c) => c.name === "params");
+    const returnCapture = match.captures.find((c) => c.name === "return_type");
+
+    if (!paramsCapture) continue;
+
+    const params = paramsCapture.node.text;
+    const returnType = returnCapture ? returnCapture.node.text : "";
+
+    // Compose signature: "(params): ReturnType" or just "(params)"
+    const raw = returnType ? `${params}${returnType}` : params;
+    return normalizeSignature(raw);
+  }
+
+  return null;
+}
+
+// Resolve absolute path, read file, extract signature for the named symbol.
+// Returns null if file not found, extension unsupported, or symbol not in file.
+async function extractSignature(
+  parserService: DaemonDeps["parserService"],
+  filePath: string,
+  symbolName: string,
+): Promise<string | null> {
+  const langId = detectLanguageId(filePath);
+  if (langId === null) return null;
+
+  const repoRoot = process.env["WIT_REPO_ROOT"] ?? process.cwd();
+  const absolutePath = join(repoRoot, filePath);
+
+  const file = Bun.file(absolutePath);
+  const exists = await file.exists();
+  if (!exists) return null;
+
+  const source = await file.text();
+  return extractSignatureFromSource(parserService, source, symbolName, langId);
+}
 
 // Valid forward-only status transitions for intent lifecycle
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -704,6 +836,163 @@ export async function handleRpc(
       }));
 
       return createRpcSuccess(body.id, result);
+    }
+
+    case "contract.propose": {
+      const parsed = ContractProposeParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { sessionId, symbolPath } = parsed.data;
+
+      // Split symbolPath into file and symbol name
+      const colonIdx = symbolPath.indexOf(":");
+      const filePath = symbolPath.slice(0, colonIdx);
+      const symbolName = symbolPath.slice(colonIdx + 1);
+
+      const signature = await extractSignature(deps.parserService, filePath, symbolName);
+      if (signature === null) {
+        return createRpcError(body.id, -32000, "SYMBOL_NOT_FOUND", { symbolPath });
+      }
+
+      const id = crypto.randomUUID();
+      const now = Date.now();
+
+      await deps.db.insert(contracts).values({
+        id,
+        proposerSessionId: sessionId,
+        symbolPath,
+        signature,
+        status: "proposed",
+        responderSessionId: null,
+        proposedAt: new Date(now),
+        respondedAt: null,
+      });
+
+      return createRpcSuccess(body.id, { contractId: id, symbolPath, signature });
+    }
+
+    case "contract.respond": {
+      const parsed = ContractRespondParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { contractId, sessionId, accept } = parsed.data;
+
+      const rows = await deps.db
+        .select()
+        .from(contracts)
+        .where(eq(contracts.id, contractId))
+        .limit(1);
+
+      const contract = rows[0];
+      if (!contract) {
+        return createRpcError(body.id, -32000, "CONTRACT_NOT_FOUND");
+      }
+
+      if (contract.status !== "proposed") {
+        return createRpcError(body.id, -32000, "CONTRACT_ALREADY_RESOLVED", {
+          status: contract.status,
+        });
+      }
+
+      if (sessionId === contract.proposerSessionId) {
+        return createRpcError(body.id, -32000, "SELF_ACCEPT_NOT_ALLOWED");
+      }
+
+      const newStatus = accept ? "accepted" : "rejected";
+      const respondedAt = new Date();
+
+      await deps.db
+        .update(contracts)
+        .set({ status: newStatus, responderSessionId: sessionId, respondedAt })
+        .where(eq(contracts.id, contractId));
+
+      return createRpcSuccess(body.id, { contractId, status: newStatus });
+    }
+
+    case "contract.query": {
+      const parsed = ContractQueryParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { symbolPath: symbolPathFilter, status: statusFilter } = parsed.data;
+
+      const conditions = [];
+      if (symbolPathFilter !== undefined) {
+        conditions.push(eq(contracts.symbolPath, symbolPathFilter));
+      }
+      if (statusFilter !== undefined) {
+        conditions.push(eq(contracts.status, statusFilter));
+      }
+
+      const rows = conditions.length > 0
+        ? await deps.db.select().from(contracts).where(and(...conditions))
+        : await deps.db.select().from(contracts);
+
+      const result = rows.map((row) => ({
+        contractId: row.id,
+        proposerSessionId: row.proposerSessionId,
+        symbolPath: row.symbolPath,
+        signature: row.signature,
+        status: row.status,
+        responderSessionId: row.responderSessionId,
+        proposedAt: row.proposedAt instanceof Date ? row.proposedAt.getTime() : row.proposedAt,
+        respondedAt: row.respondedAt instanceof Date ? row.respondedAt.getTime() : (row.respondedAt ?? null),
+      }));
+
+      return createRpcSuccess(body.id, result);
+    }
+
+    case "check-contracts": {
+      const parsed = CheckContractsParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { files } = parsed.data;
+
+      const violations: Array<{
+        contractId: string;
+        symbolPath: string;
+        expected: string;
+        actual: string;
+      }> = [];
+
+      for (const { path: filePath, content } of files) {
+        const langId = detectLanguageId(filePath);
+        if (langId === null) continue;
+
+        // Find all accepted contracts for symbols in this file
+        const filePrefix = filePath + ":";
+        const acceptedRows = await deps.db
+          .select()
+          .from(contracts)
+          .where(
+            and(
+              eq(contracts.status, "accepted"),
+              like(contracts.symbolPath, filePrefix + "%"),
+            ),
+          );
+
+        for (const row of acceptedRows) {
+          const colonIdx = row.symbolPath.indexOf(":");
+          const symbolName = row.symbolPath.slice(colonIdx + 1);
+
+          // Extract signature from staged content (not disk)
+          const actual = extractSignatureFromSource(deps.parserService, content, symbolName, langId);
+
+          if (actual === null || actual !== row.signature) {
+            violations.push({
+              contractId: row.id,
+              symbolPath: row.symbolPath,
+              expected: row.signature,
+              actual: actual ?? "(symbol not found in staged content)",
+            });
+          }
+        }
+      }
+
+      return createRpcSuccess(body.id, { violations });
     }
 
     default:

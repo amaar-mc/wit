@@ -1690,3 +1690,560 @@ function calleeFn(): void {}
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// contract.propose / contract.respond / contract.query / check-contracts
+// ---------------------------------------------------------------------------
+
+describe("contract.propose", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-contract-propose-test-"));
+    repoDir = join(tmpDir, "repo");
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  test("extracts signature from TS function and returns contractId + signature", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`,
+    );
+
+    const result = await handleRpc(
+      makeRequest("contract.propose", {
+        sessionId: "session-a",
+        symbolPath: "src/auth.ts:validateToken",
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { contractId: string; symbolPath: string; signature: string };
+      expect(typeof data.contractId).toBe("string");
+      expect(data.contractId.length).toBeGreaterThan(0);
+      expect(data.symbolPath).toBe("src/auth.ts:validateToken");
+      // Signature should contain the parameters and return type
+      expect(data.signature).toContain("token: string");
+      expect(data.signature).toContain("boolean");
+    }
+  });
+
+  test("returns SYMBOL_NOT_FOUND when symbol does not exist in file", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `export function otherFn(): void {}
+`,
+    );
+
+    const result = await handleRpc(
+      makeRequest("contract.propose", {
+        sessionId: "session-a",
+        symbolPath: "src/auth.ts:nonExistentFn",
+      }),
+      deps,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("SYMBOL_NOT_FOUND");
+    }
+  });
+
+  test("returns SYMBOL_NOT_FOUND when file does not exist", async () => {
+    const result = await handleRpc(
+      makeRequest("contract.propose", {
+        sessionId: "session-a",
+        symbolPath: "src/nonexistent.ts:someFunction",
+      }),
+      deps,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("SYMBOL_NOT_FOUND");
+    }
+  });
+
+  test("stores contract row in DB with status=proposed", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`,
+    );
+
+    const result = await handleRpc(
+      makeRequest("contract.propose", {
+        sessionId: "session-a",
+        symbolPath: "src/auth.ts:validateToken",
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const { contractId } = result.result as { contractId: string };
+      const { contracts: contractsTable } = await import("../../db/schema");
+      const rows = await deps.db.select().from(contractsTable);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.id).toBe(contractId);
+      expect(rows[0]!.status).toBe("proposed");
+      expect(rows[0]!.proposerSessionId).toBe("session-a");
+      expect(rows[0]!.symbolPath).toBe("src/auth.ts:validateToken");
+    }
+  });
+});
+
+describe("contract.respond", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-contract-respond-test-"));
+    repoDir = join(tmpDir, "repo");
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  async function proposeContract(sessionId: string = "session-a"): Promise<string> {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`,
+    );
+    const result = await handleRpc(
+      makeRequest("contract.propose", {
+        sessionId,
+        symbolPath: "src/auth.ts:validateToken",
+      }),
+      deps,
+    );
+    if ("result" in result) {
+      return (result.result as { contractId: string }).contractId;
+    }
+    throw new Error("propose failed");
+  }
+
+  test("accept transitions contract to accepted and returns {contractId, status}", async () => {
+    const contractId = await proposeContract("session-a");
+
+    const result = await handleRpc(
+      makeRequest("contract.respond", {
+        contractId,
+        sessionId: "session-b",
+        accept: true,
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { contractId: string; status: string };
+      expect(data.contractId).toBe(contractId);
+      expect(data.status).toBe("accepted");
+    }
+  });
+
+  test("reject transitions contract to rejected", async () => {
+    const contractId = await proposeContract("session-a");
+
+    const result = await handleRpc(
+      makeRequest("contract.respond", {
+        contractId,
+        sessionId: "session-b",
+        accept: false,
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { contractId: string; status: string };
+      expect(data.status).toBe("rejected");
+    }
+  });
+
+  test("proposer cannot accept their own contract (SELF_ACCEPT_NOT_ALLOWED)", async () => {
+    const contractId = await proposeContract("session-a");
+
+    const result = await handleRpc(
+      makeRequest("contract.respond", {
+        contractId,
+        sessionId: "session-a",
+        accept: true,
+      }),
+      deps,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("SELF_ACCEPT_NOT_ALLOWED");
+    }
+  });
+
+  test("responding to non-existent contract returns CONTRACT_NOT_FOUND", async () => {
+    const result = await handleRpc(
+      makeRequest("contract.respond", {
+        contractId: "does-not-exist",
+        sessionId: "session-b",
+        accept: true,
+      }),
+      deps,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("CONTRACT_NOT_FOUND");
+    }
+  });
+
+  test("responding to already accepted contract returns CONTRACT_ALREADY_RESOLVED", async () => {
+    const contractId = await proposeContract("session-a");
+
+    // Accept it first
+    await handleRpc(
+      makeRequest("contract.respond", { contractId, sessionId: "session-b", accept: true }),
+      deps,
+    );
+
+    // Try to respond again
+    const result = await handleRpc(
+      makeRequest("contract.respond", {
+        contractId,
+        sessionId: "session-c",
+        accept: false,
+      }),
+      deps,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("CONTRACT_ALREADY_RESOLVED");
+    }
+  });
+
+  test("responding to already rejected contract returns CONTRACT_ALREADY_RESOLVED", async () => {
+    const contractId = await proposeContract("session-a");
+
+    // Reject it first
+    await handleRpc(
+      makeRequest("contract.respond", { contractId, sessionId: "session-b", accept: false }),
+      deps,
+    );
+
+    // Try to respond again
+    const result = await handleRpc(
+      makeRequest("contract.respond", {
+        contractId,
+        sessionId: "session-c",
+        accept: true,
+      }),
+      deps,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("CONTRACT_ALREADY_RESOLVED");
+    }
+  });
+});
+
+describe("contract.query", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-contract-query-test-"));
+    repoDir = join(tmpDir, "repo");
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+export function login(user: string, pass: string): void {}
+`,
+    );
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  test("returns all contracts with no filter", async () => {
+    await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-a", symbolPath: "src/auth.ts:validateToken" }),
+      deps,
+    );
+    await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-b", symbolPath: "src/auth.ts:login" }),
+      deps,
+    );
+
+    const result = await handleRpc(makeRequest("contract.query", {}), deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as unknown[];
+      expect(items).toHaveLength(2);
+    }
+  });
+
+  test("filters by symbolPath", async () => {
+    await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-a", symbolPath: "src/auth.ts:validateToken" }),
+      deps,
+    );
+    await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-b", symbolPath: "src/auth.ts:login" }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("contract.query", { symbolPath: "src/auth.ts:validateToken" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as Array<{ symbolPath: string }>;
+      expect(items).toHaveLength(1);
+      expect(items[0]!.symbolPath).toBe("src/auth.ts:validateToken");
+    }
+  });
+
+  test("filters by status", async () => {
+    const r1 = await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-a", symbolPath: "src/auth.ts:validateToken" }),
+      deps,
+    );
+    const r2 = await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-b", symbolPath: "src/auth.ts:login" }),
+      deps,
+    );
+
+    if ("result" in r1) {
+      const { contractId } = r1.result as { contractId: string };
+      // Accept the first contract
+      await handleRpc(
+        makeRequest("contract.respond", { contractId, sessionId: "session-c", accept: true }),
+        deps,
+      );
+    }
+
+    const result = await handleRpc(
+      makeRequest("contract.query", { status: "accepted" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as Array<{ status: string }>;
+      expect(items).toHaveLength(1);
+      expect(items[0]!.status).toBe("accepted");
+    }
+  });
+});
+
+describe("check-contracts", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-check-contracts-test-"));
+    repoDir = join(tmpDir, "repo");
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  async function setupAcceptedContract(
+    symbolPath: string,
+    fileContent: string,
+  ): Promise<string> {
+    const [filePath] = symbolPath.split(":");
+    writeFileSync(join(repoDir, filePath!), fileContent);
+
+    const proposeResult = await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-a", symbolPath }),
+      deps,
+    );
+    if (!("result" in proposeResult)) throw new Error("propose failed");
+    const { contractId } = proposeResult.result as { contractId: string };
+
+    const respondResult = await handleRpc(
+      makeRequest("contract.respond", { contractId, sessionId: "session-b", accept: true }),
+      deps,
+    );
+    if (!("result" in respondResult)) throw new Error("respond failed");
+
+    return contractId;
+  }
+
+  test("no violations when staged content matches accepted contract signature", async () => {
+    const content = `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`;
+    await setupAcceptedContract("src/auth.ts:validateToken", content);
+
+    const result = await handleRpc(
+      makeRequest("check-contracts", {
+        files: [{ path: "src/auth.ts", content }],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { violations: unknown[] };
+      expect(data.violations).toHaveLength(0);
+    }
+  });
+
+  test("violation returned when staged content changes accepted signature", async () => {
+    const originalContent = `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`;
+    await setupAcceptedContract("src/auth.ts:validateToken", originalContent);
+
+    // Staged content has a different signature
+    const changedContent = `export function validateToken(token: string, strict: boolean): boolean {
+  return token.length > 0;
+}
+`;
+
+    const result = await handleRpc(
+      makeRequest("check-contracts", {
+        files: [{ path: "src/auth.ts", content: changedContent }],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as {
+        violations: Array<{ contractId: string; symbolPath: string; expected: string; actual: string }>;
+      };
+      expect(data.violations).toHaveLength(1);
+      expect(data.violations[0]!.symbolPath).toBe("src/auth.ts:validateToken");
+      expect(data.violations[0]!.expected).toBeDefined();
+      expect(data.violations[0]!.actual).toBeDefined();
+      // expected and actual must differ
+      expect(data.violations[0]!.expected).not.toBe(data.violations[0]!.actual);
+    }
+  });
+
+  test("only accepted contracts are checked (proposed/rejected contracts are ignored)", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `export function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`,
+    );
+
+    // Propose but do NOT accept
+    await handleRpc(
+      makeRequest("contract.propose", { sessionId: "session-a", symbolPath: "src/auth.ts:validateToken" }),
+      deps,
+    );
+
+    // Changed content — would be a violation if contract were accepted
+    const changedContent = `export function validateToken(token: string, strict: boolean): boolean {
+  return token.length > 0;
+}
+`;
+
+    const result = await handleRpc(
+      makeRequest("check-contracts", {
+        files: [{ path: "src/auth.ts", content: changedContent }],
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { violations: unknown[] };
+      // No violations — contract wasn't accepted
+      expect(data.violations).toHaveLength(0);
+    }
+  });
+});
