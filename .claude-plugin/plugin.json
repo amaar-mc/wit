@@ -16,6 +16,5 @@
     "merge-conflicts",
     "multi-agent"
   ],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "skills": "./skills/"
 }
