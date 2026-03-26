@@ -4,10 +4,10 @@
   "description": "Coordinate multiple AI agents working on the same codebase. Prevents merge conflicts before code is written.",
   "author": {
     "name": "Amaar Chughtai",
-    "url": "https://github.com/amaarchughtai"
+    "url": "https://github.com/amaar-mc"
   },
-  "homepage": "https://github.com/amaarchughtai/wit",
-  "repository": "https://github.com/amaarchughtai/wit",
+  "homepage": "https://github.com/amaar-mc/wit",
+  "repository": "https://github.com/amaar-mc/wit",
   "license": "MIT",
   "keywords": [
     "ai",

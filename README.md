@@ -52,7 +52,7 @@ bun install -g wit-protocol
 
 **From source:**
 ```bash
-git clone https://github.com/amaarchughtai/wit.git
+git clone https://github.com/amaar-mc/wit.git
 cd wit
 bun install
 bun link
@@ -122,12 +122,12 @@ Wit ships as a Claude Code plugin. Once installed, agents automatically declare 
 
 **Step 1:** Add the Wit marketplace (one-time)
 ```
-/plugin marketplace add amaarchughtai/wit
+/plugin marketplace add amaar-mc/wit
 ```
 
 **Step 2:** Install the plugin
 ```
-/plugin install wit@amaarchughtai-wit
+/plugin install wit@amaar-mc-wit
 ```
 
 **Step 3:** Make sure the CLI is installed (see [Install the CLI](#install-the-cli) above)
@@ -272,7 +272,7 @@ Add `.wit/` to your `.gitignore`.
 ## Development
 
 ```bash
-git clone https://github.com/amaarchughtai/wit.git
+git clone https://github.com/amaar-mc/wit.git
 cd wit
 bun install
 bun test

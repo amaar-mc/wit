@@ -24,9 +24,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/amaarchughtai/wit"
+    "url": "https://github.com/amaar-mc/wit"
   },
-  "homepage": "https://github.com/amaarchughtai/wit",
+  "homepage": "https://github.com/amaar-mc/wit",
   "engines": {
     "bun": ">=1.0.0"
   },
