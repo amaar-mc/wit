@@ -15,6 +15,13 @@
       "when": 1774502239913,
       "tag": "0001_jazzy_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774505787930,
+      "tag": "0002_bent_naoko",
+      "breakpoints": true
     }
   ]
 }

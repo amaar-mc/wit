@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq, gt, and } from "drizzle-orm";
+import { eq, gt, and, inArray, sql } from "drizzle-orm";
 import { join } from "node:path";
-import { agents, locks, symbolDeps } from "../../db/schema";
+import { agents, locks, symbolDeps, intents } from "../../db/schema";
 import {
   createRpcSuccess,
   createRpcError,
@@ -34,6 +34,31 @@ const LockReleaseParamsSchema = z.object({
 const LockQueryParamsSchema = z.object({
   sessionId: z.string().optional(),
 });
+
+const IntentDeclareParamsSchema = z.object({
+  sessionId: z.string().min(1),
+  description: z.string().min(1),
+  files: z.array(z.string().min(1)).min(1),
+  symbols: z.array(z.string()).optional(),
+});
+
+const IntentUpdateParamsSchema = z.object({
+  intentId: z.string().min(1),
+  sessionId: z.string().min(1),
+  status: z.enum(["active", "resolved", "abandoned"]),
+});
+
+const IntentQueryParamsSchema = z.object({
+  sessionId: z.string().optional(),
+  file: z.string().optional(),
+  status: z.string().optional(),
+});
+
+// Valid forward-only status transitions for intent lifecycle
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  declared: ["active", "resolved", "abandoned"],
+  active: ["resolved", "abandoned"],
+};
 
 const DEFAULT_TTL_MS = 1_800_000;
 
@@ -142,6 +167,46 @@ async function buildCallerWarnings(
   }
 
   return warnings;
+}
+
+// Resolve the union byte range (min startByte, max endByte) for the given symbol names
+// across all listed files. Returns null if no matching symbols found or files don't exist.
+async function resolveSymbolByteRange(
+  deps: DaemonDeps,
+  files: string[],
+  symbolNames: string[],
+): Promise<{ startByte: number; endByte: number } | null> {
+  const repoRoot = process.env["WIT_REPO_ROOT"] ?? process.cwd();
+  let minStart: number | null = null;
+  let maxEnd: number | null = null;
+
+  for (const filePath of files) {
+    const langId = detectLanguageId(filePath);
+    if (langId === null) continue;
+
+    const absolutePath = join(repoRoot, filePath);
+    const file = Bun.file(absolutePath);
+    const exists = await file.exists();
+    if (!exists) continue;
+
+    const source = await file.text();
+    const language = langId === "typescript"
+      ? deps.parserService.typescript
+      : deps.parserService.python;
+
+    // IMPORTANT: Do not await anything between setLanguage and parse
+    const symbols = extractSymbols(deps.parserService.parser, language, source);
+
+    for (const sym of symbols) {
+      if (symbolNames.includes(sym.name)) {
+        if (minStart === null || sym.startByte < minStart) minStart = sym.startByte;
+        if (maxEnd === null || sym.endByte > maxEnd) maxEnd = sym.endByte;
+      }
+    }
+  }
+
+  if (minStart === null || maxEnd === null) return null;
+  return { startByte: minStart, endByte: maxEnd };
 }
 
 export async function handleRpc(
@@ -318,6 +383,138 @@ export async function handleRpc(
         acquiredAt: row.acquiredAt.toISOString(),
         expiresAt: row.expiresAt.toISOString(),
         ttlRemainingMs: row.expiresAt.getTime() - now.getTime(),
+      }));
+
+      return createRpcSuccess(body.id, result);
+    }
+
+    case "intent.declare": {
+      const parsed = IntentDeclareParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { sessionId, description, files, symbols } = parsed.data;
+
+      // Comma-delimited with leading/trailing commas for exact LIKE segment matching
+      const filesCol = "," + files.join(",") + ",";
+
+      // Resolve byte range if symbols were provided
+      let startByte: number | null = null;
+      let endByte: number | null = null;
+      if (symbols && symbols.length > 0) {
+        const range = await resolveSymbolByteRange(deps, files, symbols);
+        if (range !== null) {
+          startByte = range.startByte;
+          endByte = range.endByte;
+        }
+      }
+
+      const id = crypto.randomUUID();
+      const now = Date.now();
+
+      await deps.db.insert(intents).values({
+        id,
+        sessionId,
+        description,
+        files: filesCol,
+        symbols: JSON.stringify(symbols ?? []),
+        startByte,
+        endByte,
+        status: "declared",
+        declaredAt: new Date(now),
+        updatedAt: new Date(now),
+      });
+
+      return createRpcSuccess(body.id, { intentId: id });
+    }
+
+    case "intent.update": {
+      const parsed = IntentUpdateParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { intentId, sessionId, status: targetStatus } = parsed.data;
+
+      const rows = await deps.db
+        .select()
+        .from(intents)
+        .where(eq(intents.id, intentId))
+        .limit(1);
+
+      const intent = rows[0];
+      if (!intent) {
+        return createRpcError(body.id, -32000, "INTENT_NOT_FOUND");
+      }
+
+      if (intent.sessionId !== sessionId) {
+        return createRpcError(body.id, -32000, "INTENT_NOT_OWNED");
+      }
+
+      const allowed = VALID_TRANSITIONS[intent.status];
+      if (!allowed || !allowed.includes(targetStatus)) {
+        return createRpcError(body.id, -32000, "INVALID_TRANSITION", {
+          current: intent.status,
+          requested: targetStatus,
+        });
+      }
+
+      const updatedAt = new Date();
+      await deps.db
+        .update(intents)
+        .set({ status: targetStatus, updatedAt })
+        .where(eq(intents.id, intentId));
+
+      return createRpcSuccess(body.id, {
+        intentId,
+        status: targetStatus,
+        updatedAt: updatedAt.getTime(),
+      });
+    }
+
+    case "intent.query": {
+      const parsed = IntentQueryParamsSchema.safeParse(body.params);
+      if (!parsed.success) {
+        return createRpcError(body.id, -32600, "INVALID_REQUEST", parsed.error.flatten());
+      }
+      const { sessionId, file, status: statusFilter } = parsed.data;
+
+      // Build where conditions dynamically
+      const conditions = [];
+
+      if (statusFilter !== undefined) {
+        // Explicit status filter: return exactly that status (allows querying resolved/abandoned)
+        conditions.push(eq(intents.status, statusFilter));
+      } else {
+        // Default: only declared and active intents
+        conditions.push(inArray(intents.status, ["declared", "active"]));
+      }
+
+      if (sessionId !== undefined) {
+        conditions.push(eq(intents.sessionId, sessionId));
+      }
+
+      if (file !== undefined) {
+        // Exact segment match using comma-delimited format: "%,src/auth.ts,%"
+        // This finds files containing exactly "src/auth.ts" as a segment (not "src/auth.ts.bak")
+        conditions.push(sql`${intents.files} LIKE ${"%" + "," + file + "," + "%"}`);
+      }
+
+      const rows = await deps.db
+        .select()
+        .from(intents)
+        .where(and(...conditions));
+
+      const result = rows.map((row) => ({
+        intentId: row.id,
+        sessionId: row.sessionId,
+        description: row.description,
+        files: row.files,
+        symbols: row.symbols,
+        startByte: row.startByte,
+        endByte: row.endByte,
+        status: row.status,
+        declaredAt: row.declaredAt instanceof Date ? row.declaredAt.getTime() : row.declaredAt,
+        updatedAt: row.updatedAt instanceof Date ? row.updatedAt.getTime() : row.updatedAt,
       }));
 
       return createRpcSuccess(body.id, result);

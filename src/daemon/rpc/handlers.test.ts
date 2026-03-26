@@ -1072,7 +1072,8 @@ describe("intent.update", () => {
     const { intents } = await import("../../db/schema");
 
     const before = await deps.db.select().from(intents);
-    const originalUpdatedAt = before[0]!.updatedAt;
+    // timestamp_ms mode returns Date objects — compare numeric values
+    const originalUpdatedAt = (before[0]!.updatedAt as Date).getTime();
 
     // Small delay to ensure timestamp difference
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -1083,7 +1084,8 @@ describe("intent.update", () => {
     );
 
     const after = await deps.db.select().from(intents);
-    expect(after[0]!.updatedAt).toBeGreaterThan(originalUpdatedAt);
+    const newUpdatedAt = (after[0]!.updatedAt as Date).getTime();
+    expect(newUpdatedAt).toBeGreaterThan(originalUpdatedAt);
   });
 });
 

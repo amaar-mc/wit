@@ -43,3 +43,32 @@ export const symbolDeps = sqliteTable(
     index("symbol_deps_file_idx").on(t.file),
   ],
 );
+
+export const intents = sqliteTable(
+  "intents",
+  {
+    // UUID primary key
+    id: text("id").primaryKey(),
+    // References agents.sessionId logically — not a FK because agent may disconnect
+    sessionId: text("session_id").notNull(),
+    description: text("description").notNull(),
+    // Comma-delimited with leading/trailing commas: ",src/auth.ts,src/utils.ts,"
+    // Enables exact LIKE segment matching: LIKE '%,src/auth.ts,%'
+    files: text("files").notNull(),
+    // JSON array of symbol name strings, e.g. '["validateToken"]'
+    symbols: text("symbols").notNull().default("[]"),
+    // Byte range resolved from tree-sitter for symbol-level intents; null for file-level
+    startByte: int("start_byte"),
+    endByte: int("end_byte"),
+    // Lifecycle: declared -> active -> resolved | abandoned
+    status: text("status").notNull().default("declared"),
+    // timestamp_ms for numeric comparison — consistent with locks table pattern
+    declaredAt: int("declared_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: int("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    index("intents_session_id_idx").on(t.sessionId),
+    index("intents_status_idx").on(t.status),
+    index("intents_files_idx").on(t.files),
+  ],
+);
