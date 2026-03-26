@@ -19,15 +19,16 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  // Kill any daemon we spawned (read PID from file if it still exists)
+  // Kill any spawned daemon process — but never kill ourselves
   if (existsSync(paths.PID_PATH)) {
     try {
       const pidStr = await Bun.file(paths.PID_PATH).text();
       const pid = parseInt(pidStr.trim(), 10);
-      if (!isNaN(pid)) {
+      // Guard: only kill external (non-self) processes
+      if (!isNaN(pid) && pid !== process.pid) {
         process.kill(pid, "SIGTERM");
-        // Give daemon time to shutdown
-        await Bun.sleep(100);
+        // Give daemon time to flush and exit
+        await Bun.sleep(150);
       }
     } catch {
       // Already dead — fine
