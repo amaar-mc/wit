@@ -1,0 +1,698 @@
+{
+  "openrpc": "1.4.0",
+  "info": {
+    "title": "Wit Agent Coordination Protocol",
+    "version": "1",
+    "description": "JSON-RPC 2.0 protocol for coordinating multiple AI agents working on the same codebase. Transported over Unix domain socket at .wit/daemon.sock via HTTP POST to /rpc. All requests and responses include a witVersion field set to '1'."
+  },
+  "components": {
+    "schemas": {
+      "CallerWarning": {
+        "title": "CallerWarning",
+        "description": "Informs the lock acquirer that a symbol calling the newly locked symbol is itself locked by another session. The acquire still succeeds; warnings are informational.",
+        "type": "object",
+        "required": ["lockedSymbol", "heldBy", "chain"],
+        "properties": {
+          "lockedSymbol": {
+            "type": "string",
+            "description": "Symbol path of the caller that holds an active lock"
+          },
+          "heldBy": {
+            "type": "string",
+            "description": "Session ID holding the caller's lock"
+          },
+          "chain": {
+            "type": "array",
+            "description": "[callerSymbolPath, newlyLockedSymbolPath]",
+            "items": { "type": "string" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "IntentOverlapItem": {
+        "title": "IntentOverlapItem",
+        "description": "Another active intent overlaps the same file(s) and byte range.",
+        "type": "object",
+        "required": ["type", "overlappingIntentId", "overlappingSessionId", "description"],
+        "properties": {
+          "type": { "type": "string", "enum": ["INTENT_OVERLAP"] },
+          "overlappingIntentId": { "type": "string", "description": "UUID of the conflicting intent" },
+          "overlappingSessionId": { "type": "string", "description": "Session that declared the conflicting intent" },
+          "description": { "type": "string", "description": "That intent's description" }
+        }
+      },
+      "LockIntersectionItem": {
+        "title": "LockIntersectionItem",
+        "description": "A declared symbol path is locked by another session.",
+        "type": "object",
+        "required": ["type", "symbolPath", "heldBy", "expiresAt"],
+        "properties": {
+          "type": { "type": "string", "enum": ["LOCK_INTERSECTION"] },
+          "symbolPath": { "type": "string", "description": "The locked symbol path" },
+          "heldBy": { "type": "string", "description": "Session holding the lock" },
+          "expiresAt": { "type": "string", "format": "date-time", "description": "ISO 8601 expiry timestamp" }
+        }
+      },
+      "DepChainItem": {
+        "title": "DepChainItem",
+        "description": "A callee of a declared symbol is locked by another session.",
+        "type": "object",
+        "required": ["type", "intentSymbol", "lockedCallee", "heldBy"],
+        "properties": {
+          "type": { "type": "string", "enum": ["DEP_CHAIN"] },
+          "intentSymbol": { "type": "string", "description": "Your declared symbol path" },
+          "lockedCallee": { "type": "string", "description": "The callee that is locked" },
+          "heldBy": { "type": "string", "description": "Session holding the callee lock" }
+        }
+      },
+      "ConflictItem": {
+        "title": "ConflictItem",
+        "description": "One detected conflict. Discriminated by the 'type' field.",
+        "oneOf": [
+          { "$ref": "#/components/schemas/IntentOverlapItem" },
+          { "$ref": "#/components/schemas/LockIntersectionItem" },
+          { "$ref": "#/components/schemas/DepChainItem" }
+        ],
+        "discriminator": { "propertyName": "type" }
+      },
+      "ConflictReport": {
+        "title": "ConflictReport",
+        "description": "Returned by intent.declare. Summarizes all detected conflicts.",
+        "type": "object",
+        "required": ["hasConflicts", "items"],
+        "properties": {
+          "hasConflicts": {
+            "type": "boolean",
+            "description": "True if items is non-empty"
+          },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ConflictItem" }
+          }
+        }
+      },
+      "LockRecord": {
+        "title": "LockRecord",
+        "description": "An active (non-expired) lock.",
+        "type": "object",
+        "required": ["symbolPath", "sessionId", "acquiredAt", "expiresAt", "ttlRemainingMs"],
+        "properties": {
+          "symbolPath": { "type": "string", "description": "The locked symbol path" },
+          "sessionId": { "type": "string", "description": "Session holding the lock" },
+          "acquiredAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "ttlRemainingMs": { "type": "integer", "description": "Milliseconds until expiry" }
+        }
+      },
+      "IntentRecord": {
+        "title": "IntentRecord",
+        "description": "A stored intent.",
+        "type": "object",
+        "required": ["intentId", "sessionId", "description", "files", "symbols", "status", "declaredAt", "updatedAt"],
+        "properties": {
+          "intentId": { "type": "string", "description": "UUID" },
+          "sessionId": { "type": "string" },
+          "description": { "type": "string" },
+          "files": {
+            "type": "string",
+            "description": "Comma-delimited file list with leading/trailing commas, e.g. ',src/auth.ts,src/api.ts,'"
+          },
+          "symbols": {
+            "type": "string",
+            "description": "JSON array string of symbol names, e.g. '[\"validateToken\"]'"
+          },
+          "startByte": { "type": ["integer", "null"], "description": "Start byte offset of symbol range, or null for file-level intent" },
+          "endByte": { "type": ["integer", "null"], "description": "End byte offset of symbol range, or null for file-level intent" },
+          "status": {
+            "type": "string",
+            "enum": ["declared", "active", "resolved", "abandoned"]
+          },
+          "declaredAt": { "type": "integer", "description": "Unix timestamp in milliseconds" },
+          "updatedAt": { "type": "integer", "description": "Unix timestamp in milliseconds" }
+        }
+      },
+      "ContractRecord": {
+        "title": "ContractRecord",
+        "description": "A stored contract.",
+        "type": "object",
+        "required": ["contractId", "proposerSessionId", "symbolPath", "signature", "status", "proposedAt"],
+        "properties": {
+          "contractId": { "type": "string", "description": "UUID" },
+          "proposerSessionId": { "type": "string" },
+          "symbolPath": { "type": "string" },
+          "signature": { "type": "string", "description": "Captured function signature (params + optional return type)" },
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "accepted", "rejected"]
+          },
+          "responderSessionId": { "type": ["string", "null"], "description": "Session that responded, or null if still proposed" },
+          "proposedAt": { "type": "integer", "description": "Unix timestamp in milliseconds" },
+          "respondedAt": { "type": ["integer", "null"], "description": "Unix timestamp in milliseconds, or null" }
+        }
+      },
+      "Violation": {
+        "title": "Violation",
+        "description": "A contract violation detected by check-contracts.",
+        "type": "object",
+        "required": ["contractId", "symbolPath", "expected", "actual"],
+        "properties": {
+          "contractId": { "type": "string", "description": "UUID of the violated contract" },
+          "symbolPath": { "type": "string", "description": "The symbol path" },
+          "expected": { "type": "string", "description": "The contracted (expected) signature" },
+          "actual": { "type": "string", "description": "The current signature in staged content, or '(symbol not found in staged content)'" }
+        }
+      }
+    },
+    "errors": {
+      "InvalidRequest": {
+        "code": -32600,
+        "message": "INVALID_REQUEST",
+        "data": {
+          "description": "Zod validation failure. The error object's data field contains flattened field errors."
+        }
+      },
+      "MethodNotFound": {
+        "code": -32601,
+        "message": "METHOD_NOT_FOUND"
+      },
+      "LockConflict": {
+        "code": -32000,
+        "message": "LOCK_CONFLICT",
+        "data": {
+          "description": "heldBy (sessionId) and expiresAt (ISO 8601) included in data"
+        }
+      },
+      "LockNotFound": {
+        "code": -32000,
+        "message": "LOCK_NOT_FOUND"
+      },
+      "LockNotHeld": {
+        "code": -32000,
+        "message": "LOCK_NOT_HELD",
+        "data": {
+          "description": "heldBy (sessionId) included in data"
+        }
+      },
+      "IntentNotFound": {
+        "code": -32000,
+        "message": "INTENT_NOT_FOUND"
+      },
+      "IntentNotOwned": {
+        "code": -32000,
+        "message": "INTENT_NOT_OWNED"
+      },
+      "InvalidTransition": {
+        "code": -32000,
+        "message": "INVALID_TRANSITION",
+        "data": {
+          "description": "current (status) and requested (status) included in data"
+        }
+      },
+      "SymbolNotFound": {
+        "code": -32000,
+        "message": "SYMBOL_NOT_FOUND",
+        "data": {
+          "description": "symbolPath included in data"
+        }
+      },
+      "ContractNotFound": {
+        "code": -32000,
+        "message": "CONTRACT_NOT_FOUND"
+      },
+      "ContractAlreadyResolved": {
+        "code": -32000,
+        "message": "CONTRACT_ALREADY_RESOLVED",
+        "data": {
+          "description": "status (current status) included in data"
+        }
+      },
+      "SelfAcceptNotAllowed": {
+        "code": -32000,
+        "message": "SELF_ACCEPT_NOT_ALLOWED"
+      }
+    }
+  },
+  "methods": [
+    {
+      "name": "ping",
+      "summary": "Health check — verifies the daemon is reachable",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "result",
+        "description": "Always the literal string 'pong'",
+        "schema": {
+          "type": "string",
+          "enum": ["pong"]
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "register",
+      "summary": "Register an agent with the daemon, associating a name with a session ID",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "description": "Human-readable agent name",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Stable unique identifier for this agent session",
+          "schema": { "type": "string", "minLength": 1 }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["agentId"],
+          "properties": {
+            "agentId": {
+              "type": "integer",
+              "description": "Auto-incremented row ID assigned to this registration"
+            }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" }
+      ]
+    },
+    {
+      "name": "lock.acquire",
+      "summary": "Acquire an exclusive lock on a symbol with automatic TTL expiry",
+      "description": "Acquires an exclusive lock on a symbol path. If locked by a different active session, returns LOCK_CONFLICT. Same session refreshes TTL. Expired locks can be taken over. Builds caller-dependency graph on success and returns informational warnings for locked callers.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "symbolPath",
+          "required": true,
+          "description": "Symbol to lock. Format: 'file:symbolName' (e.g., 'src/auth.ts:validateToken'). Must contain ':'.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*:.*"
+          }
+        },
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Caller's session ID",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "ttlMs",
+          "required": false,
+          "description": "Lock TTL in milliseconds. Default: 1800000 (30 minutes)",
+          "schema": { "type": "integer" }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["symbolPath", "sessionId", "acquiredAt", "expiresAt", "warnings"],
+          "properties": {
+            "symbolPath": { "type": "string" },
+            "sessionId": { "type": "string" },
+            "acquiredAt": { "type": "string", "format": "date-time" },
+            "expiresAt": { "type": "string", "format": "date-time" },
+            "warnings": {
+              "type": "array",
+              "items": { "$ref": "#/components/schemas/CallerWarning" }
+            }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" },
+        { "code": -32000, "message": "LOCK_CONFLICT" }
+      ]
+    },
+    {
+      "name": "lock.release",
+      "summary": "Release a lock held by the caller's session",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "symbolPath",
+          "required": true,
+          "description": "Symbol path to release",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Must match the session that holds the lock",
+          "schema": { "type": "string", "minLength": 1 }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["released"],
+          "properties": {
+            "released": {
+              "type": "boolean",
+              "description": "Always true on success"
+            }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" },
+        { "code": -32000, "message": "LOCK_NOT_FOUND" },
+        { "code": -32000, "message": "LOCK_NOT_HELD" }
+      ]
+    },
+    {
+      "name": "lock.query",
+      "summary": "Query active (non-expired) locks, optionally filtered by session",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": false,
+          "description": "If provided, return only locks held by this session",
+          "schema": { "type": "string" }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/LockRecord" }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" }
+      ]
+    },
+    {
+      "name": "intent.declare",
+      "summary": "Declare intent to modify files/symbols and receive a conflict report",
+      "description": "Stores the intent and runs three conflict detectors: INTENT_OVERLAP (overlapping file/byte range), LOCK_INTERSECTION (declared symbol locked elsewhere), DEP_CHAIN (callee of declared symbol locked elsewhere). Always succeeds — conflicts are informational warnings in the response, not errors.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Caller's session ID",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "description",
+          "required": true,
+          "description": "Human-readable description of the intent",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "files",
+          "required": true,
+          "description": "Array of relative file paths (at least one)",
+          "schema": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1
+          }
+        },
+        {
+          "name": "symbols",
+          "required": false,
+          "description": "Symbol names (not paths) to associate with the intent. Used for byte-range resolution and conflict detection.",
+          "schema": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["intentId", "conflicts"],
+          "properties": {
+            "intentId": { "type": "string", "description": "UUID of the created intent" },
+            "conflicts": { "$ref": "#/components/schemas/ConflictReport" }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" }
+      ]
+    },
+    {
+      "name": "intent.update",
+      "summary": "Update the status of an existing intent using forward-only transitions",
+      "description": "Valid transitions: declared -> active|resolved|abandoned, active -> resolved|abandoned. Terminal states (resolved, abandoned) have no outgoing transitions.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "intentId",
+          "required": true,
+          "description": "UUID of the intent to update",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Must match the session that declared the intent",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "status",
+          "required": true,
+          "description": "Target status",
+          "schema": {
+            "type": "string",
+            "enum": ["active", "resolved", "abandoned"]
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["intentId", "status", "updatedAt"],
+          "properties": {
+            "intentId": { "type": "string" },
+            "status": { "type": "string" },
+            "updatedAt": { "type": "integer", "description": "Unix timestamp in milliseconds" }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" },
+        { "code": -32000, "message": "INTENT_NOT_FOUND" },
+        { "code": -32000, "message": "INTENT_NOT_OWNED" },
+        { "code": -32000, "message": "INVALID_TRANSITION" }
+      ]
+    },
+    {
+      "name": "intent.query",
+      "summary": "Query intents with optional filters for session, file, and status",
+      "description": "Without a status filter, returns declared and active intents only. Providing an explicit status filter (including 'resolved' or 'abandoned') overrides the default. File filter uses exact segment matching.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": false,
+          "description": "Filter by session ID",
+          "schema": { "type": "string" }
+        },
+        {
+          "name": "file",
+          "required": false,
+          "description": "Filter by file path (exact segment match)",
+          "schema": { "type": "string" }
+        },
+        {
+          "name": "status",
+          "required": false,
+          "description": "Filter by status. When absent, defaults to declared + active",
+          "schema": { "type": "string" }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/IntentRecord" }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" }
+      ]
+    },
+    {
+      "name": "contract.propose",
+      "summary": "Propose a function signature contract for a symbol, capturing its current signature",
+      "description": "Reads the symbol's current signature from disk using tree-sitter (TypeScript/Python). Returns the captured signature as the contract's expected value. Another agent must call contract.respond to accept or reject. Supported languages: .ts/.tsx/.js/.jsx (TypeScript) and .py (Python).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Proposing agent's session ID",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "symbolPath",
+          "required": true,
+          "description": "Symbol whose signature to capture. Format: 'file:symbolName'. Must contain ':'.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*:.*"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["contractId", "symbolPath", "signature"],
+          "properties": {
+            "contractId": { "type": "string", "description": "UUID of the created contract" },
+            "symbolPath": { "type": "string" },
+            "signature": { "type": "string", "description": "Captured function signature (params + optional return type)" }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" },
+        { "code": -32000, "message": "SYMBOL_NOT_FOUND" }
+      ]
+    },
+    {
+      "name": "contract.respond",
+      "summary": "Accept or reject a proposed contract",
+      "description": "The responding session must differ from the proposing session (SELF_ACCEPT_NOT_ALLOWED). The contract must be in 'proposed' status.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "contractId",
+          "required": true,
+          "description": "UUID of the contract to respond to",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "sessionId",
+          "required": true,
+          "description": "Responding agent's session ID (must differ from proposer)",
+          "schema": { "type": "string", "minLength": 1 }
+        },
+        {
+          "name": "accept",
+          "required": true,
+          "description": "true to accept, false to reject",
+          "schema": { "type": "boolean" }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["contractId", "status"],
+          "properties": {
+            "contractId": { "type": "string" },
+            "status": {
+              "type": "string",
+              "enum": ["accepted", "rejected"]
+            }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" },
+        { "code": -32000, "message": "CONTRACT_NOT_FOUND" },
+        { "code": -32000, "message": "CONTRACT_ALREADY_RESOLVED" },
+        { "code": -32000, "message": "SELF_ACCEPT_NOT_ALLOWED" }
+      ]
+    },
+    {
+      "name": "contract.query",
+      "summary": "Query contracts, optionally filtered by symbol path and/or status",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "symbolPath",
+          "required": false,
+          "description": "Filter by exact symbol path",
+          "schema": { "type": "string" }
+        },
+        {
+          "name": "status",
+          "required": false,
+          "description": "Filter by status (proposed, accepted, rejected)",
+          "schema": { "type": "string" }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/ContractRecord" }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" }
+      ]
+    },
+    {
+      "name": "check-contracts",
+      "summary": "Check staged file contents against accepted contracts for signature violations",
+      "description": "Used by the git pre-commit hook. The caller passes staged file content directly so the daemon never reads from disk. For each accepted contract whose symbol lives in a provided file, the daemon parses the staged content and compares signatures. The hook uses a 2-second timeout and fails open — if the daemon is unreachable, the commit proceeds.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "files",
+          "required": true,
+          "description": "Array of staged file entries",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["path", "content"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Relative file path"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Full file content as a string"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "required": ["violations"],
+          "properties": {
+            "violations": {
+              "type": "array",
+              "items": { "$ref": "#/components/schemas/Violation" },
+              "description": "List of contract violations. Empty array means no violations."
+            }
+          }
+        }
+      },
+      "errors": [
+        { "code": -32600, "message": "INVALID_REQUEST" }
+      ]
+    }
+  ]
+}
