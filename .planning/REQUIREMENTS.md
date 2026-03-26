@@ -92,46 +92,46 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFR-01 | — | Pending |
-| INFR-02 | — | Pending |
-| INFR-03 | — | Pending |
-| INFR-04 | — | Pending |
-| INFR-05 | — | Pending |
-| INFR-06 | — | Pending |
-| INTN-01 | — | Pending |
-| INTN-02 | — | Pending |
-| INTN-03 | — | Pending |
-| INTN-04 | — | Pending |
-| LOCK-01 | — | Pending |
-| LOCK-02 | — | Pending |
-| LOCK-03 | — | Pending |
-| LOCK-04 | — | Pending |
-| LOCK-05 | — | Pending |
-| LOCK-06 | — | Pending |
-| LOCK-07 | — | Pending |
-| LOCK-08 | — | Pending |
-| CONF-01 | — | Pending |
-| CONF-02 | — | Pending |
-| CONF-03 | — | Pending |
-| CONF-04 | — | Pending |
-| CONT-01 | — | Pending |
-| CONT-02 | — | Pending |
-| CONT-03 | — | Pending |
-| APIC-01 | — | Pending |
-| APIC-02 | — | Pending |
-| APIC-03 | — | Pending |
-| APIC-04 | — | Pending |
-| APIC-05 | — | Pending |
-| APIC-06 | — | Pending |
-| APIC-07 | — | Pending |
-| APIC-08 | — | Pending |
-| APIC-09 | — | Pending |
+| INFR-01 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Pending |
+| INFR-03 | Phase 1 | Pending |
+| INFR-04 | Phase 1 | Pending |
+| INFR-05 | Phase 1 | Pending |
+| INFR-06 | Phase 1 | Pending |
+| APIC-01 | Phase 1 | Pending |
+| APIC-02 | Phase 1 | Pending |
+| LOCK-01 | Phase 2 | Pending |
+| LOCK-02 | Phase 2 | Pending |
+| LOCK-03 | Phase 2 | Pending |
+| LOCK-04 | Phase 2 | Pending |
+| LOCK-05 | Phase 2 | Pending |
+| LOCK-06 | Phase 2 | Pending |
+| LOCK-07 | Phase 2 | Pending |
+| LOCK-08 | Phase 2 | Pending |
+| INTN-01 | Phase 3 | Pending |
+| INTN-02 | Phase 3 | Pending |
+| INTN-03 | Phase 3 | Pending |
+| CONF-01 | Phase 3 | Pending |
+| CONF-02 | Phase 3 | Pending |
+| CONF-03 | Phase 3 | Pending |
+| CONF-04 | Phase 3 | Pending |
+| CONT-01 | Phase 3 | Pending |
+| CONT-02 | Phase 3 | Pending |
+| CONT-03 | Phase 3 | Pending |
+| APIC-03 | Phase 4 | Pending |
+| APIC-04 | Phase 4 | Pending |
+| APIC-05 | Phase 4 | Pending |
+| APIC-06 | Phase 4 | Pending |
+| APIC-07 | Phase 4 | Pending |
+| APIC-08 | Phase 4 | Pending |
+| APIC-09 | Phase 4 | Pending |
+| INTN-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 34 total
-- Mapped to phases: 0
-- Unmapped: 34
+- Mapped to phases: 34
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-25*
-*Last updated: 2026-03-25 after initial definition*
+*Last updated: 2026-03-25 after roadmap creation*
