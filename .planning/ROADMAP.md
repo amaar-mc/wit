@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project scaffold, shared contracts (paths + protocol types), and SQLite/Drizzle database layer
-- [ ] 01-02-PLAN.md — Daemon process: Hono server on Unix socket, JSON-RPC routing, version middleware, agent registration, lifecycle management
-- [ ] 01-03-PLAN.md — CLI entry point, connect-or-spawn client, and `wit init` command
+- [x] 01-01-PLAN.md — Project scaffold, shared contracts (paths + protocol types), and SQLite/Drizzle database layer
+- [x] 01-02-PLAN.md — Daemon process: Hono server on Unix socket, JSON-RPC routing, version middleware, agent registration, lifecycle management
+- [x] 01-03-PLAN.md — CLI entry point, connect-or-spawn client, and `wit init` command
 
 ### Phase 2: Semantic Locking
 **Goal**: Agents can acquire and release symbol-level locks (functions, types, exports) using Tree-sitter AST parsing for TypeScript/JavaScript and Python, with TTL-based auto-cleanup and a full dependency graph for caller awareness
@@ -45,10 +45,12 @@ Plans:
   2. A lock auto-releases when the agent session disconnects; locks also expire via TTL and are cleared by a background daemon job without manual intervention
   3. Any agent can query the current lock state and see what symbols are locked, by which session, and how much TTL remains
   4. When an agent attempts to touch a symbol that calls into a locked symbol, the daemon returns a warning identifying which locked symbol is in the call chain
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Tree-sitter WASM parser service, TS/Python symbol extraction, and locks + symbol_deps schema
+- [ ] 02-02-PLAN.md — Lock acquire/release/query RPC handlers, TTL cleanup loop, parser wired into daemon
+- [ ] 02-03-PLAN.md — Call edge extraction, symbol_deps population on lock.acquire, caller warnings
 
 ### Phase 3: Coordination
 **Goal**: The full pre-write coordination loop — agents declare intents, receive conflict warnings based on overlapping intents and locked regions, and can propose and accept interface contracts with other agents
@@ -87,6 +89,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-03-26 |
-| 2. Semantic Locking | 0/? | Not started | - |
+| 2. Semantic Locking | 0/3 | Not started | - |
 | 3. Coordination | 0/? | Not started | - |
 | 4. Polish | 0/? | Not started | - |
