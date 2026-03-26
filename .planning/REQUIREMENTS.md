@@ -57,7 +57,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **APIC-06**: CLI command `wit release` releases a held lock
 - [ ] **APIC-07**: All CLI commands support `--json` flag for machine-readable output
 - [ ] **APIC-08**: `wit watch` command polls and displays live coordination state changes
-- [ ] **APIC-09**: Open protocol spec document (markdown + JSON Schema) describing all API methods
+- [x] **APIC-09**: Open protocol spec document (markdown + JSON Schema) describing all API methods
 
 ## v2 Requirements
 
@@ -124,7 +124,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | APIC-06 | Phase 4 | Pending |
 | APIC-07 | Phase 4 | Pending |
 | APIC-08 | Phase 4 | Pending |
-| APIC-09 | Phase 4 | Pending |
+| APIC-09 | Phase 4 | Complete |
 | INTN-04 | Phase 4 | Pending |
 
 **Coverage:**

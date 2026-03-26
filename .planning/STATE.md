@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-coordination-03-03-PLAN.md
-last_updated: "2026-03-26T06:36:54.981Z"
+stopped_at: Completed 04-polish-04-03-PLAN.md
+last_updated: "2026-03-26T07:04:28.279Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 12
+  completed_plans: 10
   percent: 33
 ---
 
@@ -59,6 +59,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 03-coordination P01 | 8 | 1 tasks | 4 files |
 | Phase 03-coordination P02 | 3 | 1 tasks | 3 files |
 | Phase 03-coordination P03 | -402 | 2 tasks | 8 files |
+| Phase 04-polish P03 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,9 @@ Recent decisions affecting current work:
 - [Phase 03-coordination]: check-contracts receives staged content as {path, content}[] pairs — daemon never reads disk for check-contracts
 - [Phase 03-coordination]: CheckContractsCommand uses Promise.race with 2s timeout for best-effort enforcement — never blocks commit if daemon unreachable
 - [Phase 03-coordination]: HookInstallCommand uses git rev-parse --git-path hooks to support custom core.hooksPath configurations
+- [Phase 04-polish]: PROTOCOL.md structured for top-to-bottom reading: transport -> envelope -> lifecycle -> methods -> types -> errors
+- [Phase 04-polish]: openrpc.json uses components/schemas with $ref for CallerWarning, ConflictItem, ConflictReport, LockRecord — avoids inline duplication
+- [Phase 04-polish]: ConflictItem modeled as oneOf with discriminator.propertyName: type — standard OpenRPC pattern for tagged unions
 
 ### Pending Todos
 
@@ -111,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T06:32:32.605Z
-Stopped at: Completed 03-coordination-03-03-PLAN.md
+Last session: 2026-03-26T07:04:28.277Z
+Stopped at: Completed 04-polish-04-03-PLAN.md
 Resume file: None
