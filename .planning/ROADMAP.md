@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Daemon process, SQLite persistence, Unix socket API, and `wit init` — the skeleton everything plugs into (completed 2026-03-26)
 - [x] **Phase 2: Semantic Locking** - Tree-sitter WASM parsing for TS/JS and Python plus the full lock primitive (acquire, release, TTL, dependency graph) (completed 2026-03-26)
 - [x] **Phase 3: Coordination** - Intent declaration, conflict detection, and agent-to-agent contracts — the full coordination loop (completed 2026-03-26)
-- [ ] **Phase 4: Polish** - Complete CLI surface, `wit watch`, intent-to-commit linkage, and open protocol spec
+- [x] **Phase 4: Polish** - Complete CLI surface, `wit watch`, intent-to-commit linkage, and open protocol spec (completed 2026-03-26)
 
 ## Phase Details
 
@@ -95,4 +95,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation | 3/3 | Complete    | 2026-03-26 |
 | 2. Semantic Locking | 3/3 | Complete    | 2026-03-26 |
 | 3. Coordination | 3/3 | Complete    | 2026-03-26 |
-| 4. Polish | 2/3 | In Progress|  |
+| 4. Polish | 3/3 | Complete   | 2026-03-26 |

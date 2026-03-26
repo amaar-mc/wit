@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 04-polish-04-01-PLAN.md
-last_updated: "2026-03-26T07:06:34.975Z"
+stopped_at: Completed 04-polish-04-02-PLAN.md
+last_updated: "2026-03-26T07:12:27.253Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 33
 ---
 
@@ -61,6 +61,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 03-coordination P03 | -402 | 2 tasks | 8 files |
 | Phase 04-polish P03 | 3 | 2 tasks | 2 files |
 | Phase 04-polish P01 | 5 | 2 tasks | 12 files |
+| Phase 04-polish P02 | 4 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Recent decisions affecting current work:
 - [Phase 04-polish]: getSessionId(witDir) throws actionable error if .wit/session.id missing — never silently returns empty
 - [Phase 04-polish]: writeSessionId derives stable ID from USER@cwd — deterministic across restarts without UUID generation
 - [Phase 04-polish]: StatusCommand calls all three RPC queries in parallel via Promise.all — single round-trip cost
+- [Phase 04-polish]: Promise.race with 500ms timeout in ActiveIntentsCommand — 500ms inner timeout plus optional coreutils timeout 0.5 as outer safety net on systems where it exists
+- [Phase 04-polish]: command -v timeout guard in prepare-commit-msg shell script — macOS ships without coreutils timeout, so primary timeout is the Promise.race in ActiveIntentsCommand
+- [Phase 04-polish]: ACTIVE_STATUSES = {declared, active}: only these two statuses contribute Wit-Intent trailers — resolved/abandoned intents must not appear in commit messages
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T07:06:34.972Z
-Stopped at: Completed 04-polish-04-01-PLAN.md
+Last session: 2026-03-26T07:12:27.251Z
+Stopped at: Completed 04-polish-04-02-PLAN.md
 Resume file: None

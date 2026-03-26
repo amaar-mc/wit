@@ -21,7 +21,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **INTN-01**: Agent can declare intent describing planned work scope before writing code
 - [x] **INTN-02**: Intent has lifecycle: declared → active → resolved/abandoned with timestamp tracking
 - [x] **INTN-03**: Any agent can query all active intents (list, filter by agent, file, or scope)
-- [ ] **INTN-04**: Intent-to-commit linkage via git trailer connecting declared intent to actual commit
+- [x] **INTN-04**: Intent-to-commit linkage via git trailer connecting declared intent to actual commit
 
 ### Semantic Locking
 
@@ -56,7 +56,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **APIC-05**: CLI command `wit lock` acquires a semantic lock on a specified symbol
 - [x] **APIC-06**: CLI command `wit release` releases a held lock
 - [x] **APIC-07**: All CLI commands support `--json` flag for machine-readable output
-- [ ] **APIC-08**: `wit watch` command polls and displays live coordination state changes
+- [x] **APIC-08**: `wit watch` command polls and displays live coordination state changes
 - [x] **APIC-09**: Open protocol spec document (markdown + JSON Schema) describing all API methods
 
 ## v2 Requirements
@@ -123,9 +123,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | APIC-05 | Phase 4 | Complete |
 | APIC-06 | Phase 4 | Complete |
 | APIC-07 | Phase 4 | Complete |
-| APIC-08 | Phase 4 | Pending |
+| APIC-08 | Phase 4 | Complete |
 | APIC-09 | Phase 4 | Complete |
-| INTN-04 | Phase 4 | Pending |
+| INTN-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 34 total
