@@ -11,6 +11,19 @@ import type { DaemonDeps } from "../server";
 import type { RpcRequest } from "../../shared/protocol";
 import { symbolDeps } from "../../db/schema";
 
+type IntentRow = {
+  intentId: string;
+  sessionId: string;
+  description: string;
+  files: string;
+  symbols: string;
+  startByte: number | null;
+  endByte: number | null;
+  status: string;
+  declaredAt: number;
+  updatedAt: number;
+};
+
 const PROTOCOL_VERSION = "1" as const;
 
 function makeRequest(method: string, params: unknown): RpcRequest {
@@ -687,5 +700,555 @@ function fn3(): void {}
     const secondRows = await deps.db.select().from(symbolDeps);
     // Same count (fully replaced, not doubled)
     expect(secondRows.length).toBe(firstCount);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// intent.declare
+// ---------------------------------------------------------------------------
+
+describe("intent.declare", () => {
+  let tmpDir: string;
+  let deps: DaemonDeps;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-intent-test-"));
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: stubParserService };
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("inserts intent and returns intentId", async () => {
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "Refactoring auth module",
+      files: ["src/auth.ts"],
+    });
+    const result = await handleRpc(req, deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { intentId: string };
+      expect(typeof data.intentId).toBe("string");
+      expect(data.intentId.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("stores files as comma-delimited with leading/trailing commas", async () => {
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "Work on auth and utils",
+      files: ["src/auth.ts", "src/utils.ts"],
+    });
+    const result = await handleRpc(req, deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const { intents } = await import("../../db/schema");
+      const rows = await deps.db.select().from(intents);
+      expect(rows).toHaveLength(1);
+      // Must have leading and trailing commas for exact LIKE matching
+      expect(rows[0]!.files).toBe(",src/auth.ts,src/utils.ts,");
+    }
+  });
+
+  test("declares file-level intent with no symbols: startByte and endByte are null", async () => {
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "Touch auth.ts at file level",
+      files: ["src/auth.ts"],
+    });
+    const result = await handleRpc(req, deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const { intents } = await import("../../db/schema");
+      const rows = await deps.db.select().from(intents);
+      expect(rows[0]!.startByte).toBeNull();
+      expect(rows[0]!.endByte).toBeNull();
+    }
+  });
+
+  test("status defaults to declared", async () => {
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "initial",
+      files: ["src/auth.ts"],
+    });
+    await handleRpc(req, deps);
+    const { intents } = await import("../../db/schema");
+    const rows = await deps.db.select().from(intents);
+    expect(rows[0]!.status).toBe("declared");
+  });
+
+  test("missing files array returns INVALID_REQUEST", async () => {
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "no files",
+    });
+    const result = await handleRpc(req, deps);
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.code).toBe(-32600);
+    }
+  });
+
+  test("empty files array returns INVALID_REQUEST", async () => {
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "empty files",
+      files: [],
+    });
+    const result = await handleRpc(req, deps);
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.code).toBe(-32600);
+    }
+  });
+});
+
+// intent.declare with real parser for symbol byte-range resolution
+describe("intent.declare with symbols", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-intent-symbols-test-"));
+    repoDir = join(tmpDir, "repo");
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  test("declares intent with symbols: populates startByte and endByte from parser", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+function login(user: string): void {}
+`,
+    );
+
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "Modify validateToken",
+      files: ["src/auth.ts"],
+      symbols: ["validateToken"],
+    });
+    const result = await handleRpc(req, deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const { intents } = await import("../../db/schema");
+      const rows = await deps.db.select().from(intents);
+      expect(rows).toHaveLength(1);
+      // startByte and endByte should be populated (non-null) when symbol found
+      expect(rows[0]!.startByte).not.toBeNull();
+      expect(rows[0]!.endByte).not.toBeNull();
+      expect((rows[0]!.startByte as number)).toBeGreaterThanOrEqual(0);
+      expect((rows[0]!.endByte as number)).toBeGreaterThan(0);
+    }
+  });
+
+  test("declares intent with unknown symbol: byte range stays null", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function validateToken(token: string): boolean {
+  return token.length > 0;
+}
+`,
+    );
+
+    const req = makeRequest("intent.declare", {
+      sessionId: "session-a",
+      description: "No such symbol",
+      files: ["src/auth.ts"],
+      symbols: ["nonExistentFn"],
+    });
+    const result = await handleRpc(req, deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const { intents } = await import("../../db/schema");
+      const rows = await deps.db.select().from(intents);
+      expect(rows[0]!.startByte).toBeNull();
+      expect(rows[0]!.endByte).toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// intent.update
+// ---------------------------------------------------------------------------
+
+describe("intent.update", () => {
+  let tmpDir: string;
+  let deps: DaemonDeps;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-intent-update-test-"));
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: stubParserService };
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  async function declareIntent(sessionId: string = "session-a"): Promise<string> {
+    const result = await handleRpc(
+      makeRequest("intent.declare", {
+        sessionId,
+        description: "test intent",
+        files: ["src/auth.ts"],
+      }),
+      deps,
+    );
+    if ("result" in result) {
+      return (result.result as { intentId: string }).intentId;
+    }
+    throw new Error("declare failed");
+  }
+
+  test("declared -> active is a valid transition", async () => {
+    const intentId = await declareIntent();
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { intentId: string; status: string; updatedAt: number };
+      expect(data.status).toBe("active");
+      expect(data.intentId).toBe(intentId);
+      expect(typeof data.updatedAt).toBe("number");
+    }
+  });
+
+  test("declared -> resolved is a valid transition", async () => {
+    const intentId = await declareIntent();
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "resolved" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { status: string };
+      expect(data.status).toBe("resolved");
+    }
+  });
+
+  test("declared -> abandoned is a valid transition", async () => {
+    const intentId = await declareIntent();
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "abandoned" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { status: string };
+      expect(data.status).toBe("abandoned");
+    }
+  });
+
+  test("active -> resolved is a valid transition", async () => {
+    const intentId = await declareIntent();
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "resolved" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { status: string };
+      expect(data.status).toBe("resolved");
+    }
+  });
+
+  test("active -> abandoned is a valid transition", async () => {
+    const intentId = await declareIntent();
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "abandoned" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const data = result.result as { status: string };
+      expect(data.status).toBe("abandoned");
+    }
+  });
+
+  test("resolved -> active is rejected with INVALID_TRANSITION", async () => {
+    const intentId = await declareIntent();
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "resolved" }),
+      deps,
+    );
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("INVALID_TRANSITION");
+      const data = result.error.data as { current: string; requested: string };
+      expect(data.current).toBe("resolved");
+      expect(data.requested).toBe("active");
+    }
+  });
+
+  test("abandoned -> active is rejected with INVALID_TRANSITION", async () => {
+    const intentId = await declareIntent();
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "abandoned" }),
+      deps,
+    );
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("INVALID_TRANSITION");
+    }
+  });
+
+  test("wrong session returns INTENT_NOT_OWNED", async () => {
+    const intentId = await declareIntent("session-a");
+    const result = await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-b", status: "active" }),
+      deps,
+    );
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("INTENT_NOT_OWNED");
+    }
+  });
+
+  test("non-existent intentId returns INTENT_NOT_FOUND", async () => {
+    const result = await handleRpc(
+      makeRequest("intent.update", {
+        intentId: "does-not-exist",
+        sessionId: "session-a",
+        status: "active",
+      }),
+      deps,
+    );
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.message).toBe("INTENT_NOT_FOUND");
+    }
+  });
+
+  test("updatedAt timestamp changes on each transition", async () => {
+    const intentId = await declareIntent();
+    const { intents } = await import("../../db/schema");
+
+    const before = await deps.db.select().from(intents);
+    const originalUpdatedAt = before[0]!.updatedAt;
+
+    // Small delay to ensure timestamp difference
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+
+    const after = await deps.db.select().from(intents);
+    expect(after[0]!.updatedAt).toBeGreaterThan(originalUpdatedAt);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// intent.query
+// ---------------------------------------------------------------------------
+
+describe("intent.query", () => {
+  let tmpDir: string;
+  let deps: DaemonDeps;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-intent-query-test-"));
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: stubParserService };
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  async function declare(
+    sessionId: string,
+    files: string[],
+    description: string = "test",
+  ): Promise<string> {
+    const result = await handleRpc(
+      makeRequest("intent.declare", { sessionId, description, files }),
+      deps,
+    );
+    if ("result" in result) {
+      return (result.result as { intentId: string }).intentId;
+    }
+    throw new Error("declare failed");
+  }
+
+  test("returns all declared/active intents with no filter", async () => {
+    await declare("session-a", ["src/auth.ts"]);
+    await declare("session-b", ["src/utils.ts"]);
+
+    const result = await handleRpc(makeRequest("intent.query", {}), deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      expect(items).toHaveLength(2);
+    }
+  });
+
+  test("filters by sessionId", async () => {
+    await declare("session-a", ["src/auth.ts"]);
+    await declare("session-b", ["src/utils.ts"]);
+
+    const result = await handleRpc(
+      makeRequest("intent.query", { sessionId: "session-a" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      expect(items).toHaveLength(1);
+      expect(items[0]!.sessionId).toBe("session-a");
+    }
+  });
+
+  test("filters by file using exact segment matching", async () => {
+    await declare("session-a", ["src/auth.ts"]);
+    await declare("session-b", ["src/auth.ts", "src/utils.ts"]);
+    await declare("session-c", ["src/other.ts"]);
+
+    const result = await handleRpc(
+      makeRequest("intent.query", { file: "src/auth.ts" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      // session-a and session-b touch src/auth.ts; session-c does not
+      expect(items).toHaveLength(2);
+      for (const item of items) {
+        expect(item.files).toContain("src/auth.ts");
+      }
+    }
+  });
+
+  test("file filter does not match partial paths (e.g. 'auth.ts' vs 'src/auth.ts')", async () => {
+    await declare("session-a", ["src/auth.ts"]);
+
+    const result = await handleRpc(
+      makeRequest("intent.query", { file: "auth.ts" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      // Should NOT match because 'auth.ts' != 'src/auth.ts'
+      expect(items).toHaveLength(0);
+    }
+  });
+
+  test("filters by status", async () => {
+    const intentId = await declare("session-a", ["src/auth.ts"]);
+    await declare("session-b", ["src/utils.ts"]);
+
+    // Transition session-a's intent to active
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "active" }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("intent.query", { status: "declared" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      expect(items).toHaveLength(1);
+      expect(items[0]!.status).toBe("declared");
+    }
+  });
+
+  test("does not return resolved/abandoned intents by default", async () => {
+    const intentId = await declare("session-a", ["src/auth.ts"]);
+
+    // Transition to resolved
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "resolved" }),
+      deps,
+    );
+
+    const result = await handleRpc(makeRequest("intent.query", {}), deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      expect(items).toHaveLength(0);
+    }
+  });
+
+  test("status filter can retrieve resolved intents explicitly", async () => {
+    const intentId = await declare("session-a", ["src/auth.ts"]);
+    await handleRpc(
+      makeRequest("intent.update", { intentId, sessionId: "session-a", status: "resolved" }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("intent.query", { status: "resolved" }),
+      deps,
+    );
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      expect(items).toHaveLength(1);
+      expect(items[0]!.status).toBe("resolved");
+    }
+  });
+
+  test("returns empty array when no matching intents", async () => {
+    const result = await handleRpc(makeRequest("intent.query", {}), deps);
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const items = result.result as IntentRow[];
+      expect(items).toHaveLength(0);
+    }
   });
 });
