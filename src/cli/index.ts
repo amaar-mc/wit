@@ -1,5 +1,6 @@
 import { Cli, Builtins } from "clipanion";
 import { InitCommand } from "./commands/init";
+import { HookInstallCommand, CheckContractsCommand } from "./commands/hook";
 
 const cli = new Cli({
   binaryLabel: "wit",
@@ -10,5 +11,7 @@ const cli = new Cli({
 cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
 cli.register(InitCommand);
+cli.register(HookInstallCommand);
+cli.register(CheckContractsCommand);
 
 cli.runExit(process.argv.slice(2));
