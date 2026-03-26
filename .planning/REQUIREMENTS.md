@@ -1,0 +1,137 @@
+# Requirements: Wit
+
+**Defined:** 2026-03-25
+**Core Value:** Multiple AI agents can work on the same codebase concurrently without producing merge conflicts — coordination happens before code is written, not after.
+
+## v1 Requirements
+
+Requirements for initial release. Each maps to roadmap phases.
+
+### Daemon & Infrastructure
+
+- [ ] **INFR-01**: Daemon process starts automatically on first CLI/API use and persists coordination state
+- [ ] **INFR-02**: SQLite database in `.wit/` with WAL mode, busy_timeout, and ACID guarantees
+- [ ] **INFR-03**: PID file management with stale PID detection and automatic recovery after crash
+- [ ] **INFR-04**: Protocol version field in every request/response with structured VERSION_MISMATCH error
+- [ ] **INFR-05**: Agent registers with name and session ID on connect; all locks/intents attributed to session
+- [ ] **INFR-06**: Daemon clean shutdown on SIGTERM/SIGINT with state flush
+
+### Intent Tracking
+
+- [ ] **INTN-01**: Agent can declare intent describing planned work scope before writing code
+- [ ] **INTN-02**: Intent has lifecycle: declared → active → resolved/abandoned with timestamp tracking
+- [ ] **INTN-03**: Any agent can query all active intents (list, filter by agent, file, or scope)
+- [ ] **INTN-04**: Intent-to-commit linkage via git trailer connecting declared intent to actual commit
+
+### Semantic Locking
+
+- [ ] **LOCK-01**: Agent can acquire lock on semantic code unit (function, type, export) identified by symbol path
+- [ ] **LOCK-02**: Agent can release lock explicitly; lock auto-releases on session disconnect
+- [ ] **LOCK-03**: Tree-sitter WASM parsing extracts symbol boundaries for TypeScript/JavaScript files
+- [ ] **LOCK-04**: Tree-sitter WASM parsing extracts symbol boundaries for Python files
+- [ ] **LOCK-05**: Every lock has TTL; daemon background job clears expired locks automatically
+- [ ] **LOCK-06**: Any agent can query lock status: what's locked, by whom, TTL remaining
+- [ ] **LOCK-07**: Dependency graph (call edges between symbols) stored in SQLite and updated on parse
+- [ ] **LOCK-08**: Agents touching callers of a locked symbol receive a warning (not a block)
+
+### Conflict Prevention
+
+- [ ] **CONF-01**: Overlapping intent detection — flag when two agents declare intents targeting the same code region
+- [ ] **CONF-02**: Locked region intersection — flag when an agent's intent overlaps an active lock held by another agent
+- [ ] **CONF-03**: Dependency graph traversal — warn when intent touches symbols in the call chain of a locked symbol
+- [ ] **CONF-04**: Structured conflict report returned synchronously when agent declares intent or acquires lock
+
+### Contracts
+
+- [ ] **CONT-01**: Agent can propose an interface contract (function signature, type shape) for a code region
+- [ ] **CONT-02**: Other agents can accept or reject a proposed contract
+- [ ] **CONT-03**: Contract enforcement via git pre-commit hook — commit blocked if it violates accepted contracts
+
+### API & CLI
+
+- [ ] **APIC-01**: HTTP/JSON-RPC API exposed over Unix domain socket at `.wit/daemon.sock`
+- [ ] **APIC-02**: CLI command `wit init` creates `.wit/` directory and initializes SQLite schema
+- [ ] **APIC-03**: CLI command `wit status` shows all active intents, locks, contracts, and conflicts
+- [ ] **APIC-04**: CLI command `wit declare` registers an intent for the calling agent
+- [ ] **APIC-05**: CLI command `wit lock` acquires a semantic lock on a specified symbol
+- [ ] **APIC-06**: CLI command `wit release` releases a held lock
+- [ ] **APIC-07**: All CLI commands support `--json` flag for machine-readable output
+- [ ] **APIC-08**: `wit watch` command polls and displays live coordination state changes
+- [ ] **APIC-09**: Open protocol spec document (markdown + JSON Schema) describing all API methods
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Distribution
+
+- **DIST-01**: Standalone compiled binary via `bun compile` for zero-dependency install
+- **DIST-02**: npm and bun global install (`npm install -g wit` / `bun install -g wit`)
+
+### Extended Features
+
+- **EXTD-01**: `wit log` command showing resolved session history (intent → commit mapping)
+- **EXTD-02**: Counter-proposal negotiation for contracts (propose → counter → accept)
+- **EXTD-03**: Additional language grammars beyond TS/JS and Python (Go, Rust, Java)
+- **EXTD-04**: Push notifications via SSE/WebSocket for real-time lock state changes
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Remote/multi-machine coordination | Requires distributed consensus (Raft/Paxos) — enormous scope, not needed for v1 local use case |
+| CI/CD integration | CI is post-write and runs on remote machines without a daemon — contradicts pre-write prevention model |
+| GUI/dashboard | CLI + API sufficient for both humans and agents; frontend build pipeline adds unnecessary complexity |
+| Transitive lock blocking (hard block on callers) | Cursor's post-mortem showed this kills throughput via false positives; warn instead |
+| Optimistic concurrency control | Cursor showed agents become risk-averse under OCC; explicit pessimistic locks are the right model |
+| Automatic merge conflict resolution | Semantic-aware auto-merge is a research problem, not a product feature |
+| Languages beyond TS/JS and Python | Extensible architecture but each language needs validated grammar quality; ship two well |
+| Windows support | Unix domain sockets are primary transport; Windows named-pipe fallback deferred |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| INFR-01 | — | Pending |
+| INFR-02 | — | Pending |
+| INFR-03 | — | Pending |
+| INFR-04 | — | Pending |
+| INFR-05 | — | Pending |
+| INFR-06 | — | Pending |
+| INTN-01 | — | Pending |
+| INTN-02 | — | Pending |
+| INTN-03 | — | Pending |
+| INTN-04 | — | Pending |
+| LOCK-01 | — | Pending |
+| LOCK-02 | — | Pending |
+| LOCK-03 | — | Pending |
+| LOCK-04 | — | Pending |
+| LOCK-05 | — | Pending |
+| LOCK-06 | — | Pending |
+| LOCK-07 | — | Pending |
+| LOCK-08 | — | Pending |
+| CONF-01 | — | Pending |
+| CONF-02 | — | Pending |
+| CONF-03 | — | Pending |
+| CONF-04 | — | Pending |
+| CONT-01 | — | Pending |
+| CONT-02 | — | Pending |
+| CONT-03 | — | Pending |
+| APIC-01 | — | Pending |
+| APIC-02 | — | Pending |
+| APIC-03 | — | Pending |
+| APIC-04 | — | Pending |
+| APIC-05 | — | Pending |
+| APIC-06 | — | Pending |
+| APIC-07 | — | Pending |
+| APIC-08 | — | Pending |
+| APIC-09 | — | Pending |
+
+**Coverage:**
+- v1 requirements: 34 total
+- Mapped to phases: 0
+- Unmapped: 34
+
+---
+*Requirements defined: 2026-03-25*
+*Last updated: 2026-03-25 after initial definition*
