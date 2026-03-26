@@ -25,12 +25,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Semantic Locking
 
-- [ ] **LOCK-01**: Agent can acquire lock on semantic code unit (function, type, export) identified by symbol path
-- [ ] **LOCK-02**: Agent can release lock explicitly; lock auto-releases on session disconnect
+- [x] **LOCK-01**: Agent can acquire lock on semantic code unit (function, type, export) identified by symbol path
+- [x] **LOCK-02**: Agent can release lock explicitly; lock auto-releases on session disconnect
 - [x] **LOCK-03**: Tree-sitter WASM parsing extracts symbol boundaries for TypeScript/JavaScript files
 - [x] **LOCK-04**: Tree-sitter WASM parsing extracts symbol boundaries for Python files
-- [ ] **LOCK-05**: Every lock has TTL; daemon background job clears expired locks automatically
-- [ ] **LOCK-06**: Any agent can query lock status: what's locked, by whom, TTL remaining
+- [x] **LOCK-05**: Every lock has TTL; daemon background job clears expired locks automatically
+- [x] **LOCK-06**: Any agent can query lock status: what's locked, by whom, TTL remaining
 - [ ] **LOCK-07**: Dependency graph (call edges between symbols) stored in SQLite and updated on parse
 - [ ] **LOCK-08**: Agents touching callers of a locked symbol receive a warning (not a block)
 
@@ -100,12 +100,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | INFR-06 | Phase 1 | Complete |
 | APIC-01 | Phase 1 | Complete |
 | APIC-02 | Phase 1 | Complete |
-| LOCK-01 | Phase 2 | Pending |
-| LOCK-02 | Phase 2 | Pending |
+| LOCK-01 | Phase 2 | Complete |
+| LOCK-02 | Phase 2 | Complete |
 | LOCK-03 | Phase 2 | Complete |
 | LOCK-04 | Phase 2 | Complete |
-| LOCK-05 | Phase 2 | Pending |
-| LOCK-06 | Phase 2 | Pending |
+| LOCK-05 | Phase 2 | Complete |
+| LOCK-06 | Phase 2 | Complete |
 | LOCK-07 | Phase 2 | Pending |
 | LOCK-08 | Phase 2 | Pending |
 | INTN-01 | Phase 3 | Pending |

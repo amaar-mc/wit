@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-semantic-locking-02-01-PLAN.md
-last_updated: "2026-03-26T05:19:58.957Z"
+stopped_at: Completed 02-semantic-locking-02-02-PLAN.md
+last_updated: "2026-03-26T05:25:56.139Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 33
 ---
 
@@ -54,6 +54,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 01-foundation P02 | 8min | 4 tasks | 7 files |
 | Phase 01-foundation P03 | 7min | 2 tasks | 7 files |
 | Phase 02-semantic-locking P01 | 2min | 2 tasks | 7 files |
+| Phase 02-semantic-locking P02 | 3min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 02-semantic-locking]: defaultWasmPaths() resolves paths relative to import.meta.url — same CWD-independence pattern as migrate.ts
 - [Phase 02-semantic-locking]: timestamp_ms mode for locks.acquiredAt/expiresAt — enables numeric Date.now() comparison without Date object overhead
 - [Phase 02-semantic-locking]: symbolPath unique index enforced at DB level — prevents race conditions on concurrent lock acquire calls
+- [Phase 02-semantic-locking]: runTtlCleanup exported separately from startTtlCleanup — enables tests to trigger cleanup logic without real intervals
+- [Phase 02-semantic-locking]: Expired-lock takeover uses upsert onConflictDoUpdate — avoids delete+insert race on concurrent acquires
+- [Phase 02-semantic-locking]: symbolPath must contain ':' separator (zod refine) — validates format at RPC boundary before DB access
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T05:19:58.955Z
-Stopped at: Completed 02-semantic-locking-02-01-PLAN.md
+Last session: 2026-03-26T05:25:56.136Z
+Stopped at: Completed 02-semantic-locking-02-02-PLAN.md
 Resume file: None
