@@ -215,24 +215,24 @@ Wit-Intent: abc-123-def-456
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Claude A    │     │  Cursor B   │     │  Copilot C  │
-└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
-       │                    │                    │
-       │       JSON-RPC over Unix socket         │
-       │                    │                    │
-       └────────────┬───────┴────────────────────┘
-                    │
-              ┌─────┴─────┐
-              │ Wit Daemon │
-              │            │
-              │ Hono HTTP  │
-              │ SQLite WAL │
-              │ Tree-sitter│
-              └────────────┘
-                    │
-              .wit/daemon.sock
-              .wit/state.db
+  ┌───────────┐    ┌───────────┐    ┌───────────┐
+  │  Claude A  │    │  Cursor B  │    │  Copilot C │
+  └─────┬─────┘    └─────┬─────┘    └─────┬─────┘
+        │                │                │
+        │   JSON-RPC over Unix socket     │
+        │                │                │
+        └────────┬───────┴────────────────┘
+                 │
+           ┌─────┴──────┐
+           │ Wit Daemon  │
+           │             │
+           │  Hono HTTP  │
+           │  SQLite WAL │
+           │  Tree-sitter│
+           └─────┬──────┘
+                 │
+           .wit/daemon.sock
+           .wit/state.db
 ```
 
 - **Daemon**: Bun process, Hono HTTP server, Unix domain socket
