@@ -1,12 +1,15 @@
-import { test, expect, describe, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { test, expect, describe, beforeEach, afterEach, beforeAll } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleRpc } from "./handlers";
 import { createDatabase } from "../../db/index";
 import { runMigrations } from "../../db/migrate";
+import { createParserService, defaultWasmPaths } from "../../parser/loader";
+import type { ParserService } from "../../parser/loader";
 import type { DaemonDeps } from "../server";
 import type { RpcRequest } from "../../shared/protocol";
+import { symbolDeps } from "../../db/schema";
 
 const PROTOCOL_VERSION = "1" as const;
 
@@ -466,5 +469,223 @@ describe("lock.query", () => {
       const locks = result.result as unknown[];
       expect(locks).toHaveLength(0);
     }
+  });
+});
+
+// Real parser is required for symbol_deps population tests
+let realParserService: ParserService;
+
+beforeAll(async () => {
+  const paths = defaultWasmPaths();
+  realParserService = await createParserService(paths.wasmDir, paths.treeSitterWasm);
+});
+
+describe("lock.acquire with symbol_deps and caller warnings", () => {
+  let tmpDir: string;
+  let repoDir: string;
+  let deps: DaemonDeps;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wit-deps-test-"));
+    repoDir = join(tmpDir, "repo");
+    // Create a fake repo directory with source files
+    require("node:fs").mkdirSync(join(repoDir, "src"), { recursive: true });
+
+    const { db, sqlite } = createDatabase(join(tmpDir, "test.db"));
+    await runMigrations(db);
+    deps = { db, sqlite, parserService: realParserService };
+
+    // Point WIT_REPO_ROOT at our fake repo
+    origEnv = process.env["WIT_REPO_ROOT"];
+    process.env["WIT_REPO_ROOT"] = repoDir;
+  });
+
+  afterEach(() => {
+    deps.sqlite.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origEnv === undefined) {
+      delete process.env["WIT_REPO_ROOT"];
+    } else {
+      process.env["WIT_REPO_ROOT"] = origEnv;
+    }
+  });
+
+  test("lock.acquire on existing TS file populates symbol_deps rows for that file", async () => {
+    // Write a TS file where callerFn calls calleeFn
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function callerFn(): void {
+  calleeFn();
+}
+function calleeFn(): void {}
+`,
+    );
+
+    const result = await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:calleeFn",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+
+    // symbol_deps should have the callerFn -> calleeFn edge
+    const rows = await deps.db.select().from(symbolDeps);
+    expect(rows.length).toBeGreaterThan(0);
+    const edge = rows.find(
+      (r) => r.caller === "src/auth.ts:callerFn" && r.callee === "src/auth.ts:calleeFn",
+    );
+    expect(edge).toBeDefined();
+  });
+
+  test("lock.acquire returns caller warnings when a caller of the locked symbol is locked by another session", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function callerFn(): void {
+  calleeFn();
+}
+function calleeFn(): void {}
+`,
+    );
+
+    // Session A locks callerFn first
+    await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:callerFn",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    // Session B now locks calleeFn — should receive warning about session-a's lock on callerFn
+    const result = await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:calleeFn",
+        sessionId: "session-b",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const lock = result.result as {
+        symbolPath: string;
+        sessionId: string;
+        warnings: Array<{ lockedSymbol: string; heldBy: string; chain: string[] }>;
+      };
+      expect(lock.symbolPath).toBe("src/auth.ts:calleeFn");
+      expect(lock.sessionId).toBe("session-b");
+      expect(Array.isArray(lock.warnings)).toBe(true);
+      expect(lock.warnings.length).toBeGreaterThan(0);
+      const warning = lock.warnings.find((w) => w.lockedSymbol === "src/auth.ts:callerFn");
+      expect(warning).toBeDefined();
+      expect(warning!.heldBy).toBe("session-a");
+      expect(warning!.chain).toEqual(["src/auth.ts:callerFn", "src/auth.ts:calleeFn"]);
+    }
+  });
+
+  test("lock.acquire returns empty warnings when same session holds caller lock", async () => {
+    writeFileSync(
+      join(repoDir, "src", "auth.ts"),
+      `function callerFn(): void {
+  calleeFn();
+}
+function calleeFn(): void {}
+`,
+    );
+
+    // Same session locks both callerFn and calleeFn
+    await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:callerFn",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    const result = await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/auth.ts:calleeFn",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const lock = result.result as { warnings: unknown[] };
+      expect(lock.warnings).toHaveLength(0);
+    }
+  });
+
+  test("lock.acquire on non-existent file succeeds with empty warnings and no symbol_deps rows", async () => {
+    // No file created — symbolPath points to a file that doesn't exist
+    const result = await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/nonexistent.ts:foo",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    expect("result" in result).toBe(true);
+    if ("result" in result) {
+      const lock = result.result as { warnings: unknown[] };
+      expect(lock.warnings).toHaveLength(0);
+    }
+
+    // No symbol_deps should be written
+    const rows = await deps.db.select().from(symbolDeps);
+    expect(rows).toHaveLength(0);
+  });
+
+  test("symbol_deps for a file are fully replaced on re-acquire (no stale edges)", async () => {
+    // First version of the file
+    writeFileSync(
+      join(repoDir, "src", "utils.ts"),
+      `function fn1(): void {
+  fn2();
+  fn3();
+}
+function fn2(): void {}
+function fn3(): void {}
+`,
+    );
+
+    await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/utils.ts:fn1",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    const firstRows = await deps.db.select().from(symbolDeps);
+    const firstCount = firstRows.length;
+    expect(firstCount).toBeGreaterThan(0);
+
+    // Re-acquire (same session refresh) — symbol_deps should be fully replaced
+    await handleRpc(
+      makeRequest("lock.acquire", {
+        symbolPath: "src/utils.ts:fn1",
+        sessionId: "session-a",
+        ttlMs: 60_000,
+      }),
+      deps,
+    );
+
+    const secondRows = await deps.db.select().from(symbolDeps);
+    // Same count (fully replaced, not doubled)
+    expect(secondRows.length).toBe(firstCount);
   });
 });
