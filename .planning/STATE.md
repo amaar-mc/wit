@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-foundation-01-02-PLAN.md
-last_updated: "2026-03-26T04:35:17.210Z"
+stopped_at: Completed 01-foundation-01-03-PLAN.md
+last_updated: "2026-03-26T04:45:19.749Z"
 last_activity: 2026-03-25 — Roadmap created, ready for Phase 1 planning
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 33
 ---
 
@@ -52,6 +52,7 @@ Progress: [███░░░░░░░] 33%
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 4min | 3 tasks | 11 files |
 | Phase 01-foundation P02 | 8min | 4 tasks | 7 files |
+| Phase 01-foundation P03 | 7min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: createApp(DaemonDeps) factory for test-friendly Hono app — no module-level singletons in daemon
 - [Phase 01-foundation]: Drizzle .returning({id}) used for insert row ID — .run() returns void in Drizzle bun-sqlite type system
 - [Phase 01-foundation]: RPC body parsed once in middleware and stashed in context via c.set('rpcBody') — handlers never re-parse
+- [Phase 01-foundation]: existsSync (node:fs) for socket polling — Bun.file().exists() returns false for unix socket files
+- [Phase 01-foundation]: import.meta.url-relative migrations path in migrate.ts — detached daemon has unpredictable CWD
+- [Phase 01-foundation]: Explicit WitPaths arg with lazy defaultPaths() factory — tests inject temp-dir paths, avoids module-level constant baking
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T04:35:17.208Z
-Stopped at: Completed 01-foundation-01-02-PLAN.md
+Last session: 2026-03-26T04:45:19.747Z
+Stopped at: Completed 01-foundation-01-03-PLAN.md
 Resume file: None

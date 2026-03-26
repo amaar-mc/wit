@@ -12,7 +12,7 @@ Wit is built in four phases that follow a strict dependency order: the daemon fo
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Daemon process, SQLite persistence, Unix socket API, and `wit init` — the skeleton everything plugs into
+- [x] **Phase 1: Foundation** - Daemon process, SQLite persistence, Unix socket API, and `wit init` — the skeleton everything plugs into (completed 2026-03-26)
 - [ ] **Phase 2: Semantic Locking** - Tree-sitter WASM parsing for TS/JS and Python plus the full lock primitive (acquire, release, TTL, dependency graph)
 - [ ] **Phase 3: Coordination** - Intent declaration, conflict detection, and agent-to-agent contracts — the full coordination loop
 - [ ] **Phase 4: Polish** - Complete CLI surface, `wit watch`, intent-to-commit linkage, and open protocol spec
@@ -86,7 +86,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 2/3 | In Progress|  |
+| 1. Foundation | 3/3 | Complete   | 2026-03-26 |
 | 2. Semantic Locking | 0/? | Not started | - |
 | 3. Coordination | 0/? | Not started | - |
 | 4. Polish | 0/? | Not started | - |
