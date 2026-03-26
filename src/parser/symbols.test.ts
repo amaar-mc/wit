@@ -97,7 +97,11 @@ const third = (): void => {};`;
     const sorted = [...symbols].sort((a, b) => a.startLine - b.startLine);
     for (let i = 1; i < sorted.length; i++) {
       // Ranges should be non-overlapping or at most touching
-      expect(sorted[i].startLine).toBeGreaterThanOrEqual(sorted[i - 1].endLine);
+      const current = sorted[i];
+      const previous = sorted[i - 1];
+      if (current && previous) {
+        expect(current.startLine).toBeGreaterThanOrEqual(previous.endLine);
+      }
     }
   });
 });
