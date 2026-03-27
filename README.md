@@ -39,6 +39,10 @@ Wit runs a lightweight daemon in the background. Agents communicate with it over
 
 Intents and locks are **warnings, not blocks**. Agents always get to decide what to do. The only hard enforcement is contracts — a git pre-commit hook blocks commits that violate an accepted contract signature.
 
+<p align="center">
+  <img src="demo.gif" alt="Wit demo — two agents coordinating on the same file" width="800" />
+</p>
+
 ## Quick Start
 
 ### Prerequisites
