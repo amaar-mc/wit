@@ -17,7 +17,9 @@
 ---
 
 <p align="center">
-  <img src="demo.gif" alt="Wit demo — two agents, same file, LOCK_CONFLICT" width="600" />
+  <video src="https://github.com/amaar-mc/wit/raw/main/demo.mp4" width="600" autoplay loop muted playsinline>
+    <img src="demo.gif" alt="Wit demo — two agents, same file, LOCK_CONFLICT" width="600" />
+  </video>
 </p>
 
 **Wit** coordinates multiple AI coding agents working on the same repository simultaneously. It sits between your agents and git — git handles version control, Wit prevents the conflicts.
