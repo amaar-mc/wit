@@ -7,6 +7,12 @@
 <p align="center">
   Declare intents. Lock symbols. Detect conflicts. Before code is written.
 </p>
+<p align="center">
+  <a href="https://github.com/amaar-mc/wit/actions/workflows/ci.yml"><img src="https://github.com/amaar-mc/wit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/wit-protocol"><img src="https://img.shields.io/npm/v/wit-protocol" alt="npm"></a>
+  <a href="https://github.com/amaar-mc/wit/blob/main/LICENSE"><img src="https://img.shields.io/github/license/amaar-mc/wit" alt="License"></a>
+  <a href="https://github.com/amaar-mc/wit/stargazers"><img src="https://img.shields.io/github/stars/amaar-mc/wit?style=social" alt="Stars"></a>
+</p>
 
 ---
 
