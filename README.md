@@ -16,6 +16,10 @@
 
 ---
 
+<p align="center">
+  <img src="demo.gif" alt="Wit demo — two agents, same file, LOCK_CONFLICT" width="600" />
+</p>
+
 **Wit** coordinates multiple AI coding agents working on the same repository simultaneously. It sits between your agents and git — git handles version control, Wit prevents the conflicts.
 
 The name comes from the word itself: the intelligence to coordinate before colliding. It also stands for **W**orkspace **I**ntent **T**racker.
@@ -38,10 +42,6 @@ Wit runs a lightweight daemon in the background. Agents communicate with it over
 | **Contracts** | Agents agree on function signatures | "validateToken accepts string, returns boolean" |
 
 Intents and locks are **warnings, not blocks**. Agents always get to decide what to do. The only hard enforcement is contracts — a git pre-commit hook blocks commits that violate an accepted contract signature.
-
-<p align="center">
-  <img src="demo.gif" alt="Wit demo — two agents coordinating on the same file" width="800" />
-</p>
 
 ## Quick Start
 
