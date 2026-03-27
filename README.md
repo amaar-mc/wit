@@ -221,61 +221,75 @@ Wit-Intent: abc-123-def-456
 ## Architecture
 
 ```
-  ┌───────────┐    ┌───────────┐    ┌───────────┐
-  │  Claude A │    │  Cursor B │    │ Copilot C │
-  └─────┬─────┘    └─────┬─────┘    └─────┬─────┘
-        │                │                │
-        │   JSON-RPC over Unix socket     │
-        │                │                │
-        └────────┬───────┴────────────────┘
-                 │
-           ┌─────┴──────┐
-           │ Wit Daemon  │
-           │             │
-           │  Hono HTTP  │
-           │  SQLite WAL │
-           │  Tree-sitter│
-           └─────┬──────┘
-                 │
-           .wit/daemon.sock
-           .wit/state.db
++-----------+    +-----------+    +-----------+
+| Claude A  |    | Cursor B  |    | Copilot C |
++-----+-----+    +-----+-----+    +-----+-----+
+      |                |                |
+      |   JSON-RPC over Unix socket    |
+      |                |                |
+      +--------+-------+----------------+
+               |
+         +-----+------+
+         | Wit Daemon  |
+         |             |
+         |  Hono HTTP  |
+         |  SQLite WAL |
+         |  Tree-sitter|
+         +-----+------+
+               |
+         .wit/daemon.sock
+         .wit/state.db
 ```
 
 - **Daemon**: Bun process, Hono HTTP server, Unix domain socket
-- **Storage**: SQLite with WAL mode for concurrent access
-- **Parsing**: Tree-sitter WASM (zero native dependencies)
+- **Storage**: SQLite with WAL mode for concurrent agent access
+- **Parsing**: Tree-sitter WASM grammars (zero native dependencies, no build step)
 - **CLI**: Clipanion, auto-starts daemon on first use
-- **Protocol**: JSON-RPC 2.0 with `witVersion` field
+- **Protocol**: JSON-RPC 2.0 with `witVersion` field for version negotiation
 
 ## Protocol Specification
 
-Wit exposes 12 JSON-RPC methods. Full spec in two formats:
+Wit exposes 12 JSON-RPC methods for agent coordination. Full spec in two formats:
 
-- **[`docs/PROTOCOL.md`](docs/PROTOCOL.md)** — Human-readable with request/response examples
+- **[`docs/PROTOCOL.md`](docs/PROTOCOL.md)** — Human-readable with request/response examples for every method
 - **[`docs/openrpc.json`](docs/openrpc.json)** — Machine-readable [OpenRPC 1.4.0](https://spec.open-rpc.org/) schema
 
-Any tool that can POST JSON to a Unix socket can participate.
+Any AI coding tool that can POST JSON to a Unix socket or run a shell command can participate in the coordination protocol. Build your own integration using the spec.
 
 ## `.wit/` Directory
 
 | File | Purpose |
 |------|---------|
-| `daemon.sock` | Unix domain socket |
-| `daemon.pid` | Daemon PID for lifecycle management |
-| `state.db` | SQLite database (WAL mode) |
-| `session.id` | Stable session identifier |
+| `daemon.sock` | Unix domain socket for JSON-RPC communication |
+| `daemon.pid` | Daemon PID for lifecycle management and crash recovery |
+| `state.db` | SQLite database with WAL mode for concurrent access |
+| `session.id` | Stable session identifier for agent tracking |
 
 Add `.wit/` to your `.gitignore`.
 
+## Supported Languages
+
+Wit uses Tree-sitter WASM grammars to parse source code at the AST level. Currently supported:
+
+- **TypeScript / JavaScript** (functions, arrow functions, methods, types, interfaces, classes)
+- **Python** (functions, classes)
+
+Adding a new language is straightforward. See [issue #1](https://github.com/amaar-mc/wit/issues/1) (Go), [#2](https://github.com/amaar-mc/wit/issues/2) (Rust), or [#4](https://github.com/amaar-mc/wit/issues/4) (Java/Kotlin) for examples of what's involved.
+
 ## Limitations (v1)
 
-- Single machine only — no network coordination
-- TypeScript/JavaScript and Python — extensible to more languages
-- CLI and API only — no GUI
-- Warnings only — locks and conflicts never block (except contracts)
-- Bun runtime required
+- Single machine only (no network coordination between remote agents)
+- TypeScript/JavaScript and Python (more languages planned, architecture is extensible)
+- CLI and API only (no GUI or dashboard beyond `wit watch`)
+- Warnings only (locks and conflicts never block, except contract enforcement)
+- Bun runtime required (standalone binary planned, see [#10](https://github.com/amaar-mc/wit/issues/10))
 
-## Development
+## Contributing
+
+Wit is open source and contributions are welcome. Good places to start:
+
+- [Good first issues](https://github.com/amaar-mc/wit/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) — language support, CLI improvements, documentation
+- [Help wanted](https://github.com/amaar-mc/wit/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) — MCP server, Windows support, standalone binary
 
 ```bash
 git clone https://github.com/amaar-mc/wit.git
@@ -287,3 +301,9 @@ bun test
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  <a href="https://github.com/amaar-mc/wit/stargazers">Star this repo</a> if you find it useful.
+</p>
