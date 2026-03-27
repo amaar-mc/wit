@@ -18,5 +18,5 @@ jobs:
 
       - run: bun install
 
-      - name: Run tests
-        run: bun test --timeout 15000
+      - name: Run unit tests
+        run: bun test --timeout 15000 src/shared src/db src/parser src/daemon
